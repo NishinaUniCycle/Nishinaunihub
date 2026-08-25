@@ -183,6 +183,35 @@
   .list-row:last-child{border-bottom:none;}
   .tiny-input{padding:7px 9px; border-radius:8px; border:1.5px solid var(--line); font-size:13px;}
 
+  .event-datetime-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .event-datetime-grid .field{min-width:0; margin-bottom:0;}
+  .event-datetime-grid input{width:100%; min-width:0; max-width:100%;}
+  .children-manage-list{display:flex; flex-direction:column; gap:10px;}
+  .child-manage-card{border:1px solid var(--line); border-radius:14px; padding:14px; background:var(--bg);}
+  .child-manage-head{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .child-manage-name{font-weight:900; font-size:16px;}
+  .child-manage-meta{font-size:12px; color:var(--ink-soft); margin-top:3px;}
+  .child-manage-actions{display:flex; gap:7px; flex-wrap:wrap; margin-top:10px;}
+  @media (max-width:640px){
+    .topbar{padding:10px 12px; gap:8px; align-items:center;}
+    .topbar-left{gap:6px; min-width:0; flex:1;}
+    .topbar-left h1{font-size:15px; line-height:1.2; max-width:170px;}
+    .topbar-right{gap:5px; flex-shrink:0;}
+    .whoami{font-size:10px; line-height:1.15;}
+    .whoami b{font-size:11.5px; max-width:52px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+    .avatar-badge{width:30px; height:30px; font-size:12px;}
+    #btn-logout{padding:7px 9px; font-size:11px;}
+    .nav-tabs{padding:9px 12px; gap:5px;}
+    .nav-tab{padding:8px 12px; font-size:13px;}
+    main{padding:18px 12px 50px; width:100%; max-width:none; overflow-x:hidden;}
+    .card{max-width:100%;}
+    .pad{padding:16px;}
+    .section-head h2{font-size:18px;}
+    .modal-backdrop{padding:12px;}
+    .modal{max-width:100%; padding:20px 16px;}
+    .event-datetime-grid{gap:8px;}
+    .event-datetime-grid input{font-size:14px; padding-left:10px; padding-right:8px;}
+  }
   .modal-backdrop{ position:fixed; inset:0; background:rgba(32,34,63,.42); display:flex; align-items:center; justify-content:center; padding:20px; z-index:100; }
   .modal{background:var(--surface); border-radius:20px; width:100%; max-width:480px; max-height:88vh; overflow-y:auto; padding:26px; box-shadow:var(--shadow);}
   .modal h3{margin:0 0 18px; font-size:18px;}
@@ -408,13 +437,19 @@ function attachLoginEvents(){
   });
 }
 
+const GRADE_OPTIONS = ['未就学','小','中','高','一般'];
+function gradeOptions(selected){
+  const legacy = selected && !GRADE_OPTIONS.includes(selected) ? `<option value="${escapeHtml(selected)}" selected>現在の登録：${escapeHtml(selected)}</option>` : '';
+  return legacy + GRADE_OPTIONS.map(g=>`<option value="${g}" ${selected===g?'selected':''}>${g}</option>`).join('');
+}
+
 /* ================= FIRST-TIME SETUP ================= */
 function renderFirstTimeSetup(){
   const err = ui.setupError ? `<div class="msg-err">${escapeHtml(ui.setupError)}</div>` : '';
   const childrenRows = ui.regChildren.map((c,i)=>`
     <div class="child-row" data-idx="${i}">
       <input placeholder="お子さんの名前" value="${escapeHtml(c.name)}" data-cf="name" />
-      <input placeholder="学年・年齢 (例:小3)" value="${escapeHtml(c.grade)}" style="max-width:130px" data-cf="grade" />
+      <select data-cf="grade" style="max-width:120px">${gradeOptions(c.grade)}</select>
       <select data-cf="teamId">${DB.teams.map(t=>`<option value="${t.id}" ${c.teamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select>
       <button type="button" class="btn btn-sm btn-danger" data-remove-child="${i}">削除</button>
     </div>`).join('');
@@ -463,7 +498,7 @@ function attachSetupEvents(){
 /* ================= APP SHELL ================= */
 function renderShell(){
   const acc = currentAccount();
-  const tabs = [ {id:'calendar', label:'カレンダー', icon:'📅'}, {id:'records', label:'記録', icon:'📈'} ];
+  const tabs = [ {id:'calendar', label:'カレンダー', icon:'📅'}, {id:'records', label:'記録', icon:'📈'}, {id:'children', label:'子ども', icon:'👦'} ];
   if(isAdmin()) tabs.push({id:'admin', label:'管理', icon:'⚙️'});
   const avatarInner = session.photoURL ? `<img src="${session.photoURL}" alt="" />` : escapeHtml((acc.name||'?').slice(0,1));
   return `
@@ -478,7 +513,7 @@ function renderShell(){
   <div class="nav-tabs">
     ${tabs.map(t=>`<button class="nav-tab ${ui.view===t.id?'active':''}" data-view="${t.id}">${t.icon} ${t.label}</button>`).join('')}
   </div>
-  <main id="main-area">${ ui.view==='calendar' ? renderCalendarView() : ui.view==='records' ? renderRecordsView() : renderAdminView() }</main>
+  <main id="main-area">${ ui.view==='calendar' ? renderCalendarView() : ui.view==='records' ? renderRecordsView() : ui.view==='children' ? renderChildrenView() : renderAdminView() }</main>
   `;
 }
 function attachShellEvents(){
@@ -486,6 +521,7 @@ function attachShellEvents(){
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click', ()=>{ ui.view=b.dataset.view; render(); }));
   if(ui.view==='calendar') attachCalendarEvents();
   if(ui.view==='records') attachRecordsEvents();
+  if(ui.view==='children') attachChildrenEvents();
   if(ui.view==='admin') attachAdminEvents();
 }
 
@@ -619,9 +655,9 @@ function openEventModal(eventId){
     <div class="field"><label>タイトル</label><input id="ev-title" value="${escapeHtml(ev.title)}" placeholder="例：通常練習" /></div>
     <div class="field"><label>対象チーム</label><select id="ev-team">${teamOpts}</select></div>
     <div class="field"><label>日付</label><input id="ev-date" type="date" value="${ev.date||''}" /></div>
-    <div style="display:flex; gap:10px;">
-      <div class="field" style="flex:1;"><label>開始時刻</label><input id="ev-start" type="time" value="${ev.startTime||''}" /></div>
-      <div class="field" style="flex:1;"><label>終了時刻</label><input id="ev-end" type="time" value="${ev.endTime||''}" /></div>
+    <div class="event-datetime-grid">
+      <div class="field"><label>開始時刻</label><input id="ev-start" type="time" value="${ev.startTime||''}" /></div>
+      <div class="field"><label>終了時刻</label><input id="ev-end" type="time" value="${ev.endTime||''}" /></div>
     </div>
     <div class="field"><label>場所</label><input id="ev-loc" value="${escapeHtml(ev.location)}" placeholder="例：〇〇小学校 体育館" /></div>
     <div class="field"><label>メモ（任意）</label><textarea id="ev-note" rows="2">${escapeHtml(ev.note||'')}</textarea></div>
@@ -643,6 +679,88 @@ function openEventModal(eventId){
     await saveKey('events', DB.events);
     closeModal(); ui.selectedDate = date; toast('保存しました'); render();
   });
+}
+
+/* ================= CHILDREN ================= */
+function renderChildrenView(){
+  const acc = currentAccount();
+  const kids = myChildren();
+  const rows = kids.map(c=>{
+    const team = teamById(c.teamId);
+    return `<div class="child-manage-card">
+      <div class="child-manage-head">
+        <div><div class="child-manage-name">${escapeHtml(c.name)}</div><div class="child-manage-meta">${escapeHtml(c.grade||'未設定')} ・ ${escapeHtml(team?.name||'未設定')}</div></div>
+        <span class="badge-role">${escapeHtml(acc.role==='admin'?'オーナー':'保護者')}</span>
+      </div>
+      <div class="child-manage-actions">
+        <button class="btn btn-outline btn-sm" data-edit-child="${c.id}">編集</button>
+        <button class="btn btn-danger btn-sm" data-delete-child="${c.id}">削除</button>
+      </div>
+    </div>`;
+  }).join('');
+  return `
+    <div class="section-head">
+      <h2>👦 子ども管理</h2>
+      <button class="btn btn-primary btn-sm" id="btn-add-child-later">＋ 子どもを追加</button>
+    </div>
+    <div class="card pad">
+      ${rows ? `<div class="children-manage-list">${rows}</div>` : `<div class="empty-state">まだお子さんが登録されていません。<br>「子どもを追加」から登録できます。</div>`}
+    </div>
+  `;
+}
+
+function openChildModal(childId){
+  const acc = currentAccount();
+  const existing = childId ? (acc.children||[]).find(c=>c.id===childId) : null;
+  const c = existing || {id:null,name:'',grade:'',teamId:DB.teams[0]?.id||''};
+  const teamOpts = DB.teams.map(t=>`<option value="${t.id}" ${c.teamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
+  let gradeValue = GRADE_OPTIONS.includes(c.grade) ? c.grade : '';
+  showModal(`
+    <h3>${childId?'お子さんを編集':'お子さんを追加'}</h3>
+    <div class="field"><label>お子さんの名前</label><input id="ch-name" value="${escapeHtml(c.name)}" placeholder="例：太郎" /></div>
+    <div class="field"><label>区分</label><select id="ch-grade"><option value="">選択してください</option>${gradeOptions(gradeValue)}</select></div>
+    <div class="field"><label>チーム / クラス</label><select id="ch-team">${teamOpts}</select></div>
+    ${c.grade && !GRADE_OPTIONS.includes(c.grade) ? `<div class="field-hint" style="margin-top:-8px;margin-bottom:12px;">以前の登録「${escapeHtml(c.grade)}」もそのまま保持できます。必要なら5区分から選び直してください。</div>` : ''}
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="ch-save">保存する</button>
+    </div>
+  `);
+  document.getElementById('ch-save').addEventListener('click', async ()=>{
+    const name = document.getElementById('ch-name').value.trim();
+    const grade = document.getElementById('ch-grade').value;
+    const teamId = document.getElementById('ch-team').value;
+    if(!name || !grade){ toast('名前と区分を入力してください'); return; }
+    const next = {id:c.id||uid('c'), name, grade, teamId};
+    if(childId){
+      acc.children = (acc.children||[]).map(x=>x.id===childId?next:x);
+    }else{
+      acc.children = [...(acc.children||[]), next];
+    }
+    await saveAccount(session.uid, acc);
+    DB.accounts[session.uid] = acc;
+    closeModal();
+    toast(childId?'お子さんの情報を更新しました':'お子さんを追加しました');
+    render();
+  });
+}
+
+function attachChildrenEvents(){
+  const add = document.getElementById('btn-add-child-later');
+  if(add) add.addEventListener('click', ()=>openChildModal(null));
+  document.querySelectorAll('[data-edit-child]').forEach(b=>b.addEventListener('click', ()=>openChildModal(b.dataset.editChild)));
+  document.querySelectorAll('[data-delete-child]').forEach(b=>b.addEventListener('click', async ()=>{
+    const id=b.dataset.deleteChild;
+    const child=(currentAccount().children||[]).find(c=>c.id===id);
+    if(!child || !confirm(`${child.name}さんを削除しますか？`)) return;
+    currentAccount().children=(currentAccount().children||[]).filter(c=>c.id!==id);
+    await saveAccount(session.uid,currentAccount());
+    delete DB.records[id];
+    Object.keys(DB.attendance||{}).forEach(eventId=>{ if(DB.attendance[eventId]) delete DB.attendance[eventId][id]; });
+    await saveKey('records',DB.records);
+    await saveKey('attendance',DB.attendance);
+    toast('お子さんを削除しました'); render();
+  }));
 }
 
 /* ================= RECORDS ================= */
