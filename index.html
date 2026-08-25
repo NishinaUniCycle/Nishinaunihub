@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nishina Unicycle Hub | 西奈ユニサイクル部運営</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#F6F5F0;
+    --surface:#FFFFFF;
+    --ink:#20223F;
+    --ink-soft:#63658A;
+    --ink-faint:#9A9CBB;
+    --accent:#2F5FE0;
+    --accent-dark:#1E45B0;
+    --accent-soft:#E7EDFC;
+    --gold:#F2B400;
+    --gold-soft:#FCEDC8;
+    --danger:#E2574C;
+    --danger-soft:#FBE2DF;
+    --success:#1E9E77;
+    --success-soft:#DBF2E9;
+    --pending:#9A9CBB;
+    --pending-soft:#EDEDF4;
+    --line:#E6E3D9;
+    --radius:16px;
+    --shadow: 0 2px 10px rgba(32,34,63,0.06), 0 10px 30px rgba(32,34,63,0.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Noto Sans JP', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  h1,h2,h3,.display{
+    font-family:'Zen Maru Gothic', sans-serif;
+    font-weight:900;
+    letter-spacing:.01em;
+  }
+  button, input, select, textarea{font-family:inherit; font-size:15px;}
+  button{cursor:pointer;}
+  #app-root{min-height:100vh; display:flex; flex-direction:column;}
+  .hidden{display:none !important;}
+
+  .wheel-mark{display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .wheel-mark svg{display:block;}
+  .spin-slow{animation: spin 9s linear infinite;}
+  @keyframes spin{from{transform:rotate(0deg);} to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion: reduce){ .spin-slow{animation:none;} }
+
+  .auth-wrap{
+    flex:1; display:flex; align-items:center; justify-content:center; padding:32px 16px;
+    background:
+      radial-gradient(circle at 12% 18%, rgba(47,95,224,0.08), transparent 40%),
+      radial-gradient(circle at 88% 82%, rgba(242,180,0,0.12), transparent 42%),
+      var(--bg);
+  }
+  .auth-card{
+    width:100%; max-width:440px; background:var(--surface); border-radius:24px;
+    box-shadow:var(--shadow); padding:36px 32px; border:1px solid var(--line);
+  }
+  .auth-logo{display:flex; align-items:center; gap:12px; margin-bottom:6px;}
+  .auth-logo h1{font-size:26px; margin:0; color:var(--ink);}
+  .auth-tag{color:var(--ink-soft); font-size:13.5px; margin:0 0 26px 0;}
+  .field{margin-bottom:16px;}
+  .field label{display:block; font-size:12.5px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;}
+  .field input, .field select, .field textarea{
+    width:100%; padding:11px 13px; border-radius:10px; border:1.5px solid var(--line); background:var(--bg);
+    color:var(--ink); outline:none; transition:border-color .15s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{border-color:var(--accent); background:var(--surface);}
+  .field-hint{font-size:11.5px; color:var(--ink-faint); margin-top:5px;}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    border:none; border-radius:11px; padding:12px 18px; font-weight:700; transition:transform .1s, opacity .15s;
+  }
+  .btn:active{transform:scale(0.98);}
+  .btn-primary{background:var(--accent); color:#fff; width:100%;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-google{background:#fff; color:#3c4043; border:1.5px solid var(--line); width:100%; gap:10px;}
+  .btn-google:hover{background:#f7f7f7;}
+  .btn-ghost{background:transparent; color:var(--accent); border:1.5px solid var(--accent-soft);}
+  .btn-outline{background:var(--surface); color:var(--ink); border:1.5px solid var(--line);}
+  .btn-danger{background:var(--danger-soft); color:var(--danger);}
+  .btn-sm{padding:7px 12px; font-size:13px; border-radius:9px;}
+  .child-row{display:flex; gap:8px; margin-bottom:8px; align-items:center;}
+  .child-row input, .child-row select{flex:1; min-width:0;}
+
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; padding:12px 20px;
+    background:var(--surface); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20;
+  }
+  .topbar-left{display:flex; align-items:center; gap:10px;}
+  .topbar-left h1{font-size:18px; margin:0;}
+  .topbar-right{display:flex; align-items:center; gap:10px;}
+  .whoami{font-size:12.5px; color:var(--ink-soft); text-align:right; line-height:1.3;}
+  .whoami b{color:var(--ink); display:block; font-size:13.5px;}
+  .avatar-badge{
+    width:34px; height:34px; border-radius:50%; background:var(--accent-soft); color:var(--accent);
+    display:flex; align-items:center; justify-content:center; font-weight:900; font-size:14px; flex-shrink:0; overflow:hidden;
+  }
+  .avatar-badge img{width:100%; height:100%; object-fit:cover;}
+  .avatar-badge.owner{background:var(--gold-soft); color:#8A6600;}
+
+  .nav-tabs{display:flex; gap:6px; padding:10px 20px; background:var(--surface); border-bottom:1px solid var(--line); overflow-x:auto;}
+  .nav-tab{
+    border:none; background:var(--bg); color:var(--ink-soft); padding:9px 16px; border-radius:999px; font-weight:700; white-space:nowrap;
+    display:flex; align-items:center; gap:7px; font-size:14px;
+  }
+  .nav-tab.active{background:var(--accent); color:#fff;}
+
+  main{flex:1; padding:22px 20px 60px; max-width:1080px; width:100%; margin:0 auto;}
+  .section-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px; flex-wrap:wrap;}
+  .section-head h2{font-size:20px; margin:0; display:flex; align-items:center; gap:8px;}
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow);}
+  .pad{padding:20px;}
+
+  .cal-nav{display:flex; align-items:center; gap:12px;}
+  .cal-nav button{background:var(--bg); border:none; width:34px; height:34px; border-radius:50%; font-weight:900; color:var(--ink);}
+  .cal-month-label{font-size:17px; font-weight:900; font-family:'Zen Maru Gothic'; min-width:110px; text-align:center;}
+  .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:6px;}
+  .cal-dow{text-align:center; font-size:11.5px; font-weight:700; color:var(--ink-faint); padding-bottom:4px;}
+  .cal-cell{
+    position:relative; min-height:74px; border-radius:12px; background:var(--bg); border:1.5px solid transparent;
+    padding:6px; display:flex; flex-direction:column; gap:4px; text-align:left;
+  }
+  .cal-cell.other-month{opacity:.35;}
+  .cal-cell.today{border-color:var(--gold);}
+  .cal-cell.selected{background:var(--accent-soft); border-color:var(--accent);}
+  .cal-cell .d-num{font-size:12.5px; font-weight:700; color:var(--ink-soft);}
+  .cal-dots{display:flex; flex-wrap:wrap; gap:3px;}
+  .cal-dot{width:7px; height:7px; border-radius:50%;}
+  @media (max-width:640px){ .cal-cell{min-height:52px;} }
+
+  .team-chip{display:inline-flex; align-items:center; gap:6px; padding:3px 10px 3px 6px; border-radius:999px; font-size:11.5px; font-weight:700;}
+  .team-dot{width:8px; height:8px; border-radius:50%;}
+
+  .event-row{ display:flex; gap:14px; padding:14px 16px; border-radius:14px; background:var(--bg); margin-bottom:10px; align-items:flex-start; }
+  .event-time{ display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:58px; text-align:center; font-family:'Zen Maru Gothic'; font-weight:700; color:var(--accent); font-size:13.5px; line-height:1.3; }
+  .event-body{flex:1; min-width:0;}
+  .event-title{font-weight:700; font-size:15px; margin:0 0 4px;}
+  .event-meta{font-size:12.5px; color:var(--ink-soft); display:flex; gap:12px; flex-wrap:wrap; margin-bottom:8px;}
+  .event-meta span{display:flex; align-items:center; gap:4px;}
+
+  .rsvp-group{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
+  .rsvp-btn{border:1.5px solid var(--line); background:var(--surface); border-radius:9px; padding:6px 11px; font-size:12.5px; font-weight:700; color:var(--ink-soft);}
+  .rsvp-btn.yes.active{background:var(--success-soft); border-color:var(--success); color:var(--success);}
+  .rsvp-btn.no.active{background:var(--danger-soft); border-color:var(--danger); color:var(--danger);}
+  .rsvp-btn.pending.active{background:var(--pending-soft); border-color:var(--pending); color:var(--ink-soft);}
+
+  .attend-summary{display:flex; gap:10px; font-size:12px; color:var(--ink-soft); margin-top:8px; flex-wrap:wrap;}
+  .attend-summary b{color:var(--ink);}
+  .name-pill{display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; margin:2px 3px 0 0;}
+  .name-pill.yes{background:var(--success-soft); color:var(--success);}
+  .name-pill.no{background:var(--danger-soft); color:var(--danger);}
+  .name-pill.pending{background:var(--pending-soft); color:var(--ink-soft);}
+
+  .empty-state{text-align:center; padding:40px 20px; color:var(--ink-faint);}
+  .empty-state .wheel-mark{margin-bottom:10px;}
+
+  .records-layout{display:grid; grid-template-columns:240px 1fr; gap:20px;}
+  @media (max-width:800px){ .records-layout{grid-template-columns:1fr;} }
+  .child-list{display:flex; flex-direction:column; gap:4px;}
+  .child-pick{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; background:var(--bg); border:none; text-align:left; width:100%; }
+  .child-pick.active{background:var(--accent); color:#fff;}
+  .child-pick .sub{font-size:11px; opacity:.75;}
+  table.rec-table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  table.rec-table th{text-align:left; font-size:11.5px; color:var(--ink-faint); font-weight:700; padding:6px 10px; border-bottom:1.5px solid var(--line);}
+  table.rec-table td{padding:9px 10px; border-bottom:1px solid var(--line);}
+  table.rec-table tr:last-child td{border-bottom:none;}
+  .best-tag{background:var(--gold-soft); color:#8A6600; font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:999px; margin-left:6px;}
+  .type-toggle{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
+  .type-toggle button{border:1.5px solid var(--line); background:var(--surface); padding:6px 13px; border-radius:999px; font-size:12.5px; font-weight:700; color:var(--ink-soft);}
+  .type-toggle button.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+
+  .admin-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
+  @media (max-width:800px){ .admin-grid{grid-template-columns:1fr;} }
+  .list-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
+  .list-row:last-child{border-bottom:none;}
+  .tiny-input{padding:7px 9px; border-radius:8px; border:1.5px solid var(--line); font-size:13px;}
+
+  .modal-backdrop{ position:fixed; inset:0; background:rgba(32,34,63,.42); display:flex; align-items:center; justify-content:center; padding:20px; z-index:100; }
+  .modal{background:var(--surface); border-radius:20px; width:100%; max-width:480px; max-height:88vh; overflow-y:auto; padding:26px; box-shadow:var(--shadow);}
+  .modal h3{margin:0 0 18px; font-size:18px;}
+  .modal-actions{display:flex; gap:10px; margin-top:18px;}
+  .modal-actions .btn{flex:1;}
+  .toast{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:12px 22px; border-radius:999px; font-size:13.5px; font-weight:700; z-index:200; box-shadow:var(--shadow); opacity:0; transition:opacity .25s, transform .25s; pointer-events:none; }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-6px);}
+  .badge-role{font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; background:var(--gold-soft); color:#8A6600;}
+  .msg-err{color:var(--danger); font-size:13px; margin-top:4px; min-height:16px;}
+  .chart-wrap{height:220px; margin-top:10px;}
+  .footnote{font-size:11.5px; color:var(--ink-faint); line-height:1.6; margin-top:26px; padding-top:16px; border-top:1px dashed var(--line);}
+  .loading-screen{flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; color:var(--ink-soft);}
+  .config-warning{ background:var(--danger-soft); color:var(--danger); border-radius:14px; padding:16px 18px; font-size:13.5px; line-height:1.7; max-width:520px; margin:20px auto; }
+  .config-warning code{background:rgba(255,255,255,.6); padding:1px 5px; border-radius:5px;}
+</style>
+</head>
+<body>
+<div id="app-root"></div>
+<div id="modal-root"></div>
+<div id="toast" class="toast"></div>
+
+<script type="module">
+/* =========================================================
+   くるっとHub — ユニサイクル部 運営アプリ (Firebase版)
+   Firebase Authentication(Google) + Cloud Firestore を使用
+   ========================================================= */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc, collection, getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ---------------------------------------------------------
+   ▼▼▼ ここを自分のFirebaseプロジェクトの値に書き換えてください ▼▼▼
+   Firebaseコンソール > プロジェクトの設定 > 全般 > マイアプリ の
+   「SDK の設定と構成」に表示される値をコピーします。
+   詳しい手順は同封の README.md を参照してください。
+--------------------------------------------------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyA0Rb58Q-N7yQgnXCDYIKPM8oTcaGUnDNM",
+  authDomain: "nishinauni-hub.firebaseapp.com",
+  projectId: "nishinauni-hub",
+  storageBucket: "nishinauni-hub.firebasestorage.app",
+  messagingSenderId: "872466470747",
+  appId: "1:872466470747:web:8ad4303230e9f955496c7e"
+};
+/* ▲▲▲ ここまで ▲▲▲ --------------------------------------- */
+
+const CONFIG_NOT_SET = firebaseConfig.apiKey === "YOUR_API_KEY";
+
+let app, auth, db, googleProvider;
+if(!CONFIG_NOT_SET){
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  googleProvider = new GoogleAuthProvider();
+}
+
+const APP_KEYS = ['teams','recordTypes','events','settings']; // collection: app
+const SHARED_KEYS = ['attendance','records']; // collection: shared
+const TEAM_COLORS = ['#2F5FE0','#F2B400','#E2574C','#1E9E77','#8E5FE0','#2FA9C7','#E07B39'];
+
+let DB = { teams:[], recordTypes:[], accounts:{}, events:[], attendance:{}, records:{}, settings:{adminCode:'kurutto2026'} };
+let session = null; // {uid, email, name, photoURL}
+let needsSetup = false; // 初回ログイン時、アカウント未作成なら true
+let ui = { view:'calendar', calYear:null, calMonth:null, selectedDate:null, regChildren:[], recordChildId:null, recordTypeFilter:null, setupError:null };
+
+/* ---------------- storage helpers (Firestore) ---------------- */
+function collFor(key){ return SHARED_KEYS.includes(key) ? 'shared' : 'app'; }
+async function loadKey(key, fallback){
+  try{
+    const snap = await getDoc(doc(db, collFor(key), key));
+    return snap.exists() ? snap.data().value : fallback;
+  }catch(e){ console.error(e); return fallback; }
+}
+async function saveKey(key, value){
+  try{ await setDoc(doc(db, collFor(key), key), { value }); }
+  catch(e){ console.error(e); toast('保存に失敗しました。権限またはネットワークをご確認ください'); }
+}
+async function loadAccount(uid){
+  try{ const snap = await getDoc(doc(db,'accounts', uid)); return snap.exists() ? snap.data() : null; }
+  catch(e){ console.error(e); return null; }
+}
+async function saveAccount(uid, data){
+  try{ await setDoc(doc(db,'accounts', uid), data); }
+  catch(e){ console.error(e); toast('保存に失敗しました'); }
+}
+async function loadAllAccounts(){
+  try{
+    const snap = await getDocs(collection(db,'accounts'));
+    const out = {};
+    snap.forEach(d=>{ out[d.id] = d.data(); });
+    return out;
+  }catch(e){ console.error(e); return {}; }
+}
+
+function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._h);
+  toast._h = setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+/* ---------------- bootstrap ---------------- */
+async function loadSharedData(){
+  const [teams, recordTypes, events, attendance, records, settings] = await Promise.all([
+    loadKey('teams', null), loadKey('recordTypes', null), loadKey('events', null),
+    loadKey('attendance', null), loadKey('records', null), loadKey('settings', null),
+  ]);
+  DB.teams = teams || [
+    {id:'t1', name:'ちびっこクラス'}, {id:'t2', name:'ジュニアクラス'}, {id:'t3', name:'アドバンスクラス'},
+    {id:'t4', name:'演技チームA'}, {id:'t5', name:'演技チームB'},
+  ];
+  if(!teams) await saveKey('teams', DB.teams);
+  DB.recordTypes = recordTypes || [
+    {id:'r1', name:'100m走', unit:'秒', better:'low'}, {id:'r2', name:'400m走', unit:'秒', better:'low'},
+    {id:'r3', name:'片足立ち', unit:'秒', better:'high'}, {id:'r4', name:'8の字走行', unit:'秒', better:'low'},
+    {id:'r5', name:'走行距離(1分間)', unit:'m', better:'high'},
+  ];
+  if(!recordTypes) await saveKey('recordTypes', DB.recordTypes);
+  DB.events = events || [];
+  DB.attendance = attendance || {};
+  DB.records = records || {};
+  DB.settings = settings || {adminCode:'kurutto2026'};
+  if(!settings) await saveKey('settings', DB.settings);
+  DB.accounts = await loadAllAccounts();
+}
+
+function fmtDate(d){ const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+
+async function boot(){
+  const root = document.getElementById('app-root');
+  if(CONFIG_NOT_SET){
+    root.innerHTML = `
+      <div class="auth-wrap"><div class="auth-card" style="text-align:center;">
+        ${logoBlock()}
+        <div class="config-warning" style="margin:0;">
+          Firebaseの設定がまだ入力されていません。<br/><br/>
+          <code>index.html</code> 内の <code>firebaseConfig</code> を、ご自身のFirebaseプロジェクトの値に書き換えてから公開してください。手順は同封の <code>README.md</code> を参照してください。
+        </div>
+      </div></div>`;
+    return;
+  }
+  root.innerHTML = `<div class="loading-screen">${wheelSVG(40,true)}<div>読み込み中…</div></div>`;
+  onAuthStateChanged(auth, async (user)=>{
+    if(user){
+      session = { uid:user.uid, email:user.email, name:user.displayName||'', photoURL:user.photoURL||'' };
+      await loadSharedData();
+      const acc = DB.accounts[session.uid] || await loadAccount(session.uid);
+      if(acc){
+        DB.accounts[session.uid] = acc;
+        needsSetup = false;
+      } else {
+        needsSetup = true;
+        ui.regChildren = [];
+      }
+    } else {
+      session = null; needsSetup = false;
+    }
+    const now = new Date();
+    ui.calYear = now.getFullYear(); ui.calMonth = now.getMonth();
+    if(!ui.selectedDate) ui.selectedDate = fmtDate(now);
+    render();
+  });
+}
+
+/* ---------------- utils ---------------- */
+function teamById(id){ return DB.teams.find(t=>t.id===id); }
+function teamColor(id){ const idx = DB.teams.findIndex(t=>t.id===id); return TEAM_COLORS[(idx<0?0:idx) % TEAM_COLORS.length]; }
+function recTypeById(id){ return DB.recordTypes.find(r=>r.id===id); }
+function allChildren(){
+  const out=[];
+  Object.entries(DB.accounts).forEach(([accUid,acc])=>{
+    (acc.children||[]).forEach(c=>out.push({...c, parentUid:accUid, parentName:acc.name}));
+  });
+  return out;
+}
+function myChildren(){
+  if(!session) return [];
+  const acc = DB.accounts[session.uid];
+  return acc ? (acc.children||[]).map(c=>({...c, parentUid:session.uid, parentName:acc.name})) : [];
+}
+function currentAccount(){ return session ? DB.accounts[session.uid] : null; }
+function isAdmin(){ const a = currentAccount(); return a && a.role==='admin'; }
+function canEditChild(childId){ if(isAdmin()) return true; return myChildren().some(c=>c.id===childId); }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+/* ---------------- render root ---------------- */
+function render(){
+  if(CONFIG_NOT_SET) return;
+  const root = document.getElementById('app-root');
+  if(!session){ root.innerHTML = renderLogin(); attachLoginEvents(); return; }
+  if(needsSetup){ root.innerHTML = renderFirstTimeSetup(); attachSetupEvents(); return; }
+  root.innerHTML = renderShell();
+  attachShellEvents();
+}
+
+/* ================= LOGIN (Google) ================= */
+function renderLogin(){
+  return `
+  <div class="auth-wrap"><div class="auth-card" style="text-align:center;">
+    ${logoBlock()}
+    <button class="btn btn-google" id="btn-google-login">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.2-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.6 5.1 29.6 3 24 3 16.3 3 9.7 7.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.5 0 10.4-1.9 14.2-5.1l-6.6-5.4C29.6 36.5 27 37 24 37c-5.3 0-9.7-3.3-11.3-8l-6.6 5.1C9.6 40.6 16.3 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.5l6.6 5.4C41.5 36.5 45 30.9 45 24c0-1.2-.1-2.3-.4-3.5z"/></svg>
+      Googleでログイン
+    </button>
+    <div class="footnote">Googleアカウントでログインします。初めての方は自動的に登録画面に進みます。この部の保護者会内での利用を想定した簡易ツールです。</div>
+  </div></div>`;
+}
+function logoBlock(){
+  return `<div class="auth-logo" style="justify-content:center;">${wheelSVG(40,true)}<h1>くるっとHub</h1></div><p class="auth-tag">ユニサイクル部の練習日程・出欠・記録をまとめて管理</p>`;
+}
+function wheelSVG(size, spin){
+  return `<span class="wheel-mark ${spin?'spin-slow':''}"><svg width="${size}" height="${size}" viewBox="0 0 40 40" fill="none">
+    <circle cx="20" cy="20" r="17" stroke="#2F5FE0" stroke-width="3"/>
+    <circle cx="20" cy="20" r="3" fill="#F2B400"/>
+    ${[0,45,90,135].map(a=>`<line x1="20" y1="20" x2="${20+17*Math.cos(a*Math.PI/180)}" y2="${20+17*Math.sin(a*Math.PI/180)}" stroke="#2F5FE0" stroke-width="2"/>`).join('')}
+  </svg></span>`;
+}
+function attachLoginEvents(){
+  document.getElementById('btn-google-login').addEventListener('click', async ()=>{
+    try{ await signInWithPopup(auth, googleProvider); }
+    catch(e){ console.error(e); toast('ログインに失敗しました: ' + e.message); }
+  });
+}
+
+/* ================= FIRST-TIME SETUP ================= */
+function renderFirstTimeSetup(){
+  const err = ui.setupError ? `<div class="msg-err">${escapeHtml(ui.setupError)}</div>` : '';
+  const childrenRows = ui.regChildren.map((c,i)=>`
+    <div class="child-row" data-idx="${i}">
+      <input placeholder="お子さんの名前" value="${escapeHtml(c.name)}" data-cf="name" />
+      <input placeholder="学年・年齢 (例:小3)" value="${escapeHtml(c.grade)}" style="max-width:130px" data-cf="grade" />
+      <select data-cf="teamId">${DB.teams.map(t=>`<option value="${t.id}" ${c.teamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select>
+      <button type="button" class="btn btn-sm btn-danger" data-remove-child="${i}">削除</button>
+    </div>`).join('');
+  return `
+  <div class="auth-wrap"><div class="auth-card">
+    ${logoBlock()}
+    <div class="field-hint" style="margin-bottom:16px;">${escapeHtml(session.name)} さん、ようこそ！最初にプロフィールを設定してください。</div>
+    <div class="field"><label>表示名</label><input id="su-name" value="${escapeHtml(session.name)}" /></div>
+    <div class="field">
+      <label>お子さんの登録</label>
+      <div id="children-rows">${childrenRows || '<div class="field-hint">「お子さんを追加」から登録してください（後からでも追加できます）</div>'}</div>
+      <button type="button" class="btn btn-ghost btn-sm" id="btn-add-child" style="margin-top:6px;">＋ お子さんを追加</button>
+    </div>
+    <div class="field"><label>管理者コード（オーナーの方のみ・任意）</label><input id="su-admincode" placeholder="オーナーから伝えられた合言葉" /><div class="field-hint">部の運営者（オーナー）は合言葉を入力すると管理者として登録されます。保護者の方は空欄でOKです。</div></div>
+    ${err}
+    <button class="btn btn-primary" id="btn-complete-setup">登録して始める</button>
+    <button class="btn btn-outline" id="btn-cancel-setup" style="width:100%; margin-top:10px;">ログアウト</button>
+  </div></div>`;
+}
+function attachSetupEvents(){
+  const addBtn = document.getElementById('btn-add-child');
+  addBtn.addEventListener('click', ()=>{ ui.regChildren.push({name:'',grade:'',teamId:DB.teams[0]?.id||''}); render(); });
+  document.querySelectorAll('[data-remove-child]').forEach(b=>b.addEventListener('click', ()=>{ ui.regChildren.splice(+b.dataset.removeChild,1); render(); }));
+  document.querySelectorAll('#children-rows .child-row').forEach(row=>{
+    row.querySelectorAll('[data-cf]').forEach(inp=>{
+      inp.addEventListener('input', ()=>{ ui.regChildren[+row.dataset.idx][inp.dataset.cf] = inp.value; });
+    });
+  });
+  document.getElementById('btn-cancel-setup').addEventListener('click', async ()=>{ await signOut(auth); });
+  document.getElementById('btn-complete-setup').addEventListener('click', async ()=>{
+    const name = document.getElementById('su-name').value.trim();
+    const adminCode = document.getElementById('su-admincode').value.trim();
+    if(!name){ ui.setupError='表示名を入力してください'; render(); return; }
+    const children = ui.regChildren.filter(c=>c.name.trim()).map(c=>({id:uid('c'), name:c.name.trim(), grade:c.grade.trim(), teamId:c.teamId}));
+    const role = (adminCode && adminCode === DB.settings.adminCode) ? 'admin' : 'parent';
+    const accData = { email:session.email, name, role, children };
+    await saveAccount(session.uid, accData);
+    DB.accounts[session.uid] = accData;
+    needsSetup = false;
+    ui.setupError = null;
+    toast(role==='admin' ? '管理者として登録しました' : '登録が完了しました');
+    render();
+  });
+}
+
+/* ================= APP SHELL ================= */
+function renderShell(){
+  const acc = currentAccount();
+  const tabs = [ {id:'calendar', label:'カレンダー', icon:'📅'}, {id:'records', label:'記録', icon:'📈'} ];
+  if(isAdmin()) tabs.push({id:'admin', label:'管理', icon:'⚙️'});
+  const avatarInner = session.photoURL ? `<img src="${session.photoURL}" alt="" />` : escapeHtml((acc.name||'?').slice(0,1));
+  return `
+  <div class="topbar">
+    <div class="topbar-left">${wheelSVG(30,false)}<h1>くるっとHub</h1></div>
+    <div class="topbar-right">
+      <div class="whoami"><b>${escapeHtml(acc.name)}</b>${acc.role==='admin'?'オーナー':'保護者'}</div>
+      <div class="avatar-badge ${acc.role==='admin'?'owner':''}">${avatarInner}</div>
+      <button class="btn btn-outline btn-sm" id="btn-logout">ログアウト</button>
+    </div>
+  </div>
+  <div class="nav-tabs">
+    ${tabs.map(t=>`<button class="nav-tab ${ui.view===t.id?'active':''}" data-view="${t.id}">${t.icon} ${t.label}</button>`).join('')}
+  </div>
+  <main id="main-area">${ ui.view==='calendar' ? renderCalendarView() : ui.view==='records' ? renderRecordsView() : renderAdminView() }</main>
+  `;
+}
+function attachShellEvents(){
+  document.getElementById('btn-logout').addEventListener('click', async ()=>{ await signOut(auth); });
+  document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click', ()=>{ ui.view=b.dataset.view; render(); }));
+  if(ui.view==='calendar') attachCalendarEvents();
+  if(ui.view==='records') attachRecordsEvents();
+  if(ui.view==='admin') attachAdminEvents();
+}
+
+/* ================= CALENDAR ================= */
+function eventsOn(dateStr){ return DB.events.filter(e=>e.date===dateStr).sort((a,b)=> (a.startTime||'').localeCompare(b.startTime||'')); }
+
+function renderCalendarView(){
+  const y=ui.calYear, m=ui.calMonth;
+  const first = new Date(y,m,1);
+  const startDow = first.getDay();
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  const prevDays = new Date(y,m,0).getDate();
+  const cells=[];
+  for(let i=startDow-1;i>=0;i--) cells.push({d:prevDays-i, other:true, dateObj:new Date(y,m-1,prevDays-i)});
+  for(let d=1; d<=daysInMonth; d++) cells.push({d, other:false, dateObj:new Date(y,m,d)});
+  while(cells.length%7!==0 || cells.length<42) { const nd = cells.length - (startDow+daysInMonth) + 1; cells.push({d:nd, other:true, dateObj:new Date(y,m+1,nd)}); if(cells.length>=42) break; }
+
+  const todayStr = fmtDate(new Date());
+  const dows = ['日','月','火','水','木','金','土'];
+
+  const grid = cells.map(c=>{
+    const ds = fmtDate(c.dateObj);
+    const evs = eventsOn(ds);
+    const dots = evs.slice(0,4).map(e=>`<span class="cal-dot" style="background:${teamColor(e.teamId)}"></span>`).join('');
+    const cls = ['cal-cell']; if(c.other) cls.push('other-month'); if(ds===todayStr) cls.push('today'); if(ds===ui.selectedDate) cls.push('selected');
+    return `<button type="button" class="${cls.join(' ')}" data-date="${ds}">
+      <span class="d-num">${c.d}</span>
+      <span class="cal-dots">${dots}</span>
+    </button>`;
+  }).join('');
+
+  const monthLabel = `${y}年 ${m+1}月`;
+  const selEvs = eventsOn(ui.selectedDate);
+  const selLabel = ui.selectedDate ? new Date(ui.selectedDate).toLocaleDateString('ja-JP',{month:'long', day:'numeric', weekday:'short'}) : '';
+  const dayDetail = selEvs.length ? selEvs.map(e=>renderEventRow(e)).join('') : `<div class="empty-state">${wheelSVG(34,false)}<div>この日の予定はまだありません</div></div>`;
+
+  return `
+    <div class="section-head">
+      <h2>${wheelSVG(22,false)} 練習カレンダー</h2>
+      ${isAdmin() ? `<button class="btn btn-primary btn-sm" id="btn-new-event">＋ イベントを追加</button>` : ''}
+    </div>
+    <div class="card pad" style="margin-bottom:18px;">
+      <div class="cal-nav" style="justify-content:space-between; margin-bottom:14px;">
+        <button id="cal-prev">‹</button>
+        <div class="cal-month-label">${monthLabel}</div>
+        <button id="cal-next">›</button>
+      </div>
+      <div class="cal-grid">
+        ${dows.map(d=>`<div class="cal-dow">${d}</div>`).join('')}
+        ${grid}
+      </div>
+      <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+        ${DB.teams.map(t=>`<span class="team-chip" style="background:${teamColor(t.id)}22; color:${teamColor(t.id)}"><span class="team-dot" style="background:${teamColor(t.id)}"></span>${escapeHtml(t.name)}</span>`).join('')}
+      </div>
+    </div>
+    <div class="card pad">
+      <h3 style="margin:0 0 14px; font-size:15px; color:var(--ink-soft);">${selLabel} の予定</h3>
+      ${dayDetail}
+    </div>
+  `;
+}
+
+function renderEventRow(e){
+  const team = teamById(e.teamId);
+  const color = teamColor(e.teamId);
+  const att = DB.attendance[e.id] || {};
+  const eligibleChildren = allChildren().filter(c=>c.teamId===e.teamId);
+  const yes = eligibleChildren.filter(c=>att[c.id]==='yes');
+  const no = eligibleChildren.filter(c=>att[c.id]==='no');
+  const myKids = myChildren().filter(c=>c.teamId===e.teamId);
+
+  const myControls = myKids.map(c=>{
+    const st = att[c.id] || 'pending';
+    return `<div style="margin-top:6px;">
+      <span style="font-size:12.5px; font-weight:700; color:var(--ink-soft);">${escapeHtml(c.name)}さん：</span>
+      <span class="rsvp-group" style="display:inline-flex; vertical-align:middle;">
+        <button class="rsvp-btn yes ${st==='yes'?'active':''}" data-rsvp="${e.id}|${c.id}|yes">参加する</button>
+        <button class="rsvp-btn no ${st==='no'?'active':''}" data-rsvp="${e.id}|${c.id}|no">休む</button>
+        <button class="rsvp-btn pending ${st==='pending'?'active':''}" data-rsvp="${e.id}|${c.id}|pending">未定</button>
+      </span>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="event-row">
+    <div class="event-time" style="color:${color}">${e.startTime||'--:--'}<br/><span style="opacity:.6; font-size:11px;">〜${e.endTime||''}</span></div>
+    <div class="event-body">
+      <p class="event-title">${escapeHtml(e.title)}</p>
+      <div class="event-meta">
+        <span class="team-chip" style="background:${color}22; color:${color}"><span class="team-dot" style="background:${color}"></span>${escapeHtml(team?team.name:'全体')}</span>
+        <span>📍 ${escapeHtml(e.location||'未定')}</span>
+      </div>
+      ${e.note ? `<div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:6px;">${escapeHtml(e.note)}</div>` : ''}
+      ${myControls}
+      <div class="attend-summary"><span><b>${yes.length}</b>/${eligibleChildren.length} 名 参加予定</span></div>
+      ${yes.length? `<div>${yes.map(c=>`<span class="name-pill yes">${escapeHtml(c.name)}</span>`).join('')}</div>`:''}
+      ${no.length? `<div>${no.map(c=>`<span class="name-pill no">${escapeHtml(c.name)}</span>`).join('')}</div>`:''}
+      ${isAdmin() ? `<div style="margin-top:10px;"><button class="btn btn-outline btn-sm" data-edit-event="${e.id}">編集</button> <button class="btn btn-danger btn-sm" data-del-event="${e.id}">削除</button></div>` : ''}
+    </div>
+  </div>`;
+}
+
+function attachCalendarEvents(){
+  document.getElementById('cal-prev').addEventListener('click', ()=>{ ui.calMonth--; if(ui.calMonth<0){ui.calMonth=11; ui.calYear--;} render(); });
+  document.getElementById('cal-next').addEventListener('click', ()=>{ ui.calMonth++; if(ui.calMonth>11){ui.calMonth=0; ui.calYear++;} render(); });
+  document.querySelectorAll('[data-date]').forEach(b=>b.addEventListener('click', ()=>{ ui.selectedDate=b.dataset.date; render(); }));
+  const newBtn = document.getElementById('btn-new-event');
+  if(newBtn) newBtn.addEventListener('click', ()=>openEventModal(null));
+  document.querySelectorAll('[data-edit-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.editEvent)));
+  document.querySelectorAll('[data-del-event]').forEach(b=>b.addEventListener('click', async ()=>{
+    if(!confirm('このイベントを削除しますか？')) return;
+    DB.events = DB.events.filter(e=>e.id!==b.dataset.delEvent);
+    delete DB.attendance[b.dataset.delEvent];
+    await saveKey('events', DB.events); await saveKey('attendance', DB.attendance);
+    toast('削除しました'); render();
+  }));
+  document.querySelectorAll('[data-rsvp]').forEach(b=>b.addEventListener('click', async ()=>{
+    const [eventId, childId, status] = b.dataset.rsvp.split('|');
+    if(!DB.attendance[eventId]) DB.attendance[eventId]={};
+    DB.attendance[eventId][childId] = status;
+    await saveKey('attendance', DB.attendance);
+    render();
+  }));
+}
+
+function openEventModal(eventId){
+  const ev = eventId ? DB.events.find(e=>e.id===eventId) : {id:null, title:'', teamId:DB.teams[0]?.id||'', date:ui.selectedDate, startTime:'', endTime:'', location:'', note:''};
+  const teamOpts = DB.teams.map(t=>`<option value="${t.id}" ${ev.teamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
+  showModal(`
+    <h3>${eventId?'イベントを編集':'新しいイベント'}</h3>
+    <div class="field"><label>タイトル</label><input id="ev-title" value="${escapeHtml(ev.title)}" placeholder="例：通常練習" /></div>
+    <div class="field"><label>対象チーム</label><select id="ev-team">${teamOpts}</select></div>
+    <div class="field"><label>日付</label><input id="ev-date" type="date" value="${ev.date||''}" /></div>
+    <div style="display:flex; gap:10px;">
+      <div class="field" style="flex:1;"><label>開始時刻</label><input id="ev-start" type="time" value="${ev.startTime||''}" /></div>
+      <div class="field" style="flex:1;"><label>終了時刻</label><input id="ev-end" type="time" value="${ev.endTime||''}" /></div>
+    </div>
+    <div class="field"><label>場所</label><input id="ev-loc" value="${escapeHtml(ev.location)}" placeholder="例：〇〇小学校 体育館" /></div>
+    <div class="field"><label>メモ（任意）</label><textarea id="ev-note" rows="2">${escapeHtml(ev.note||'')}</textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="ev-save">保存する</button>
+    </div>
+  `);
+  document.getElementById('ev-save').addEventListener('click', async ()=>{
+    const title = document.getElementById('ev-title').value.trim();
+    const date = document.getElementById('ev-date').value;
+    if(!title || !date){ toast('タイトルと日付は必須です'); return; }
+    const data = {
+      id: ev.id || uid('e'), title, teamId: document.getElementById('ev-team').value, date,
+      startTime: document.getElementById('ev-start').value, endTime: document.getElementById('ev-end').value,
+      location: document.getElementById('ev-loc').value.trim(), note: document.getElementById('ev-note').value.trim(),
+    };
+    if(ev.id){ DB.events = DB.events.map(e=>e.id===ev.id?data:e); } else { DB.events.push(data); }
+    await saveKey('events', DB.events);
+    closeModal(); ui.selectedDate = date; toast('保存しました'); render();
+  });
+}
+
+/* ================= RECORDS ================= */
+function renderRecordsView(){
+  const kids = isAdmin() ? allChildren() : myChildren();
+  if(!ui.recordChildId && kids.length) ui.recordChildId = kids[0].id;
+  const selected = kids.find(c=>c.id===ui.recordChildId);
+
+  const list = kids.map(c=>{
+    const t = teamById(c.teamId);
+    return `<button class="child-pick ${c.id===ui.recordChildId?'active':''}" data-pick-child="${c.id}">
+      <span class="wheel-mark">${wheelSVG(20,false)}</span>
+      <span><div>${escapeHtml(c.name)}</div><div class="sub">${escapeHtml(c.grade||'')} ・ ${escapeHtml(t?t.name:'')}${isAdmin()&&c.parentName?' ・ '+escapeHtml(c.parentName):''}</div></span>
+    </button>`;
+  }).join('') || `<div class="empty-state">登録されたお子さんがいません</div>`;
+
+  let content = `<div class="empty-state">${wheelSVG(34,false)}<div>左のリストからお子さんを選んでください</div></div>`;
+  if(selected){
+    const myRecords = (DB.records[selected.id]||[]).slice().sort((a,b)=> b.date.localeCompare(a.date));
+    if(!ui.recordTypeFilter) ui.recordTypeFilter = DB.recordTypes[0]?.id;
+    const canEdit = canEditChild(selected.id);
+    const bestByType = {};
+    myRecords.forEach(r=>{
+      const rt = recTypeById(r.typeId); if(!rt) return;
+      const cur = bestByType[r.typeId];
+      const better = rt.better==='low' ? (cur===undefined || r.value<cur) : (cur===undefined || r.value>cur);
+      if(better) bestByType[r.typeId]=r.value;
+    });
+    const rows = myRecords.map(r=>{
+      const rt = recTypeById(r.typeId); if(!rt) return '';
+      const isBest = bestByType[r.typeId]===r.value;
+      return `<tr>
+        <td>${escapeHtml(rt.name)}</td>
+        <td>${r.value}${escapeHtml(rt.unit)}${isBest?'<span class="best-tag">ベスト</span>':''}</td>
+        <td>${r.date}</td>
+        <td style="color:var(--ink-soft); font-size:12.5px;">${escapeHtml(r.note||'')}</td>
+        <td>${canEdit?`<button class="btn btn-sm btn-danger" data-del-record="${selected.id}|${r.id}">削除</button>`:''}</td>
+      </tr>`;
+    }).join('');
+    const typeToggles = DB.recordTypes.map(rt=>`<button class="${ui.recordTypeFilter===rt.id?'active':''}" data-chart-type="${rt.id}">${escapeHtml(rt.name)}</button>`).join('');
+    content = `
+      <div class="section-head">
+        <h2 style="font-size:17px;">${escapeHtml(selected.name)}さんの記録</h2>
+        ${canEdit ? `<button class="btn btn-primary btn-sm" id="btn-add-record">＋ 記録を追加</button>` : ''}
+      </div>
+      <div class="card pad" style="margin-bottom:18px;">
+        <div class="type-toggle">${typeToggles}</div>
+        <div class="chart-wrap"><canvas id="record-chart"></canvas></div>
+      </div>
+      <div class="card pad">
+        <table class="rec-table">
+          <thead><tr><th>種目</th><th>記録</th><th>日付</th><th>メモ</th><th></th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="5" style="color:var(--ink-faint); text-align:center; padding:20px;">まだ記録がありません</td></tr>`}</tbody>
+        </table>
+      </div>
+    `;
+  }
+  return `
+    <div class="section-head"><h2>📈 記録表</h2></div>
+    <div class="records-layout">
+      <div class="card pad"><div class="child-list">${list}</div></div>
+      <div>${content}</div>
+    </div>
+  `;
+}
+
+function attachRecordsEvents(){
+  document.querySelectorAll('[data-pick-child]').forEach(b=>b.addEventListener('click', ()=>{ ui.recordChildId=b.dataset.pickChild; ui.recordTypeFilter=null; render(); }));
+  document.querySelectorAll('[data-chart-type]').forEach(b=>b.addEventListener('click', ()=>{ ui.recordTypeFilter=b.dataset.chartType; render(); }));
+  const addBtn = document.getElementById('btn-add-record');
+  if(addBtn) addBtn.addEventListener('click', openRecordModal);
+  document.querySelectorAll('[data-del-record]').forEach(b=>b.addEventListener('click', async ()=>{
+    const [childId, recId] = b.dataset.delRecord.split('|');
+    if(!confirm('この記録を削除しますか？')) return;
+    DB.records[childId] = (DB.records[childId]||[]).filter(r=>r.id!==recId);
+    await saveKey('records', DB.records);
+    toast('削除しました'); render();
+  }));
+  drawChart();
+}
+
+function drawChart(){
+  const canvas = document.getElementById('record-chart');
+  if(!canvas || typeof Chart==='undefined') return;
+  const childId = ui.recordChildId; const typeId = ui.recordTypeFilter;
+  const rt = recTypeById(typeId);
+  const data = (DB.records[childId]||[]).filter(r=>r.typeId===typeId).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  if(window._recChart) window._recChart.destroy();
+  window._recChart = new Chart(canvas, {
+    type:'line',
+    data:{ labels:data.map(d=>d.date), datasets:[{ label: rt?`${rt.name} (${rt.unit})`:'', data:data.map(d=>d.value), borderColor:'#2F5FE0', backgroundColor:'rgba(47,95,224,0.12)', tension:.3, fill:true, pointBackgroundColor:'#F2B400', pointRadius:5 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:false } } }
+  });
+}
+
+function openRecordModal(){
+  const typeOpts = DB.recordTypes.map(rt=>`<option value="${rt.id}">${escapeHtml(rt.name)} (${escapeHtml(rt.unit)})</option>`).join('');
+  showModal(`
+    <h3>記録を追加</h3>
+    <div class="field"><label>種目</label><select id="rc-type">${typeOpts}</select></div>
+    <div class="field"><label>記録</label><input id="rc-value" type="number" step="0.01" placeholder="例：18.4" /></div>
+    <div class="field"><label>日付</label><input id="rc-date" type="date" value="${fmtDate(new Date())}" /></div>
+    <div class="field"><label>メモ（任意）</label><input id="rc-note" placeholder="例：大会記録" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="rc-save">保存する</button>
+    </div>
+  `);
+  document.getElementById('rc-save').addEventListener('click', async ()=>{
+    const value = parseFloat(document.getElementById('rc-value').value);
+    const date = document.getElementById('rc-date').value;
+    if(isNaN(value) || !date){ toast('記録と日付を入力してください'); return; }
+    const entry = { id:uid('rec'), typeId:document.getElementById('rc-type').value, value, date, note:document.getElementById('rc-note').value.trim() };
+    if(!DB.records[ui.recordChildId]) DB.records[ui.recordChildId]=[];
+    DB.records[ui.recordChildId].push(entry);
+    await saveKey('records', DB.records);
+    closeModal(); ui.recordTypeFilter = entry.typeId; toast('記録を追加しました'); render();
+  });
+}
+
+/* ================= ADMIN ================= */
+function renderAdminView(){
+  const teamRows = DB.teams.map(t=>`<div class="list-row"><span>${escapeHtml(t.name)}</span><button class="btn btn-sm btn-danger" data-del-team="${t.id}">削除</button></div>`).join('');
+  const typeRows = DB.recordTypes.map(rt=>`<div class="list-row"><span>${escapeHtml(rt.name)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(rt.unit)} / ${rt.better==='low'?'小さいほど良い':'大きいほど良い'})</span></span><button class="btn btn-sm btn-danger" data-del-type="${rt.id}">削除</button></div>`).join('');
+  const rosterRows = Object.entries(DB.accounts).map(([accUid,acc])=>`
+    <div class="list-row" style="flex-wrap:wrap;">
+      <span>${escapeHtml(acc.name)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(acc.email||'')})</span> ${acc.role==='admin'?'<span class="badge-role">オーナー</span>':''}
+        <div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${(acc.children||[]).map(c=>escapeHtml(c.name)).join('、') || '（お子さん未登録）'}</div>
+      </span>
+      <button class="btn btn-sm btn-outline" data-toggle-role="${accUid}">${acc.role==='admin'?'一般に戻す':'管理者にする'}</button>
+    </div>`).join('');
+  const upcoming = DB.events.slice().sort((a,b)=>a.date.localeCompare(b.date)).filter(e=>e.date>=fmtDate(new Date())).slice(0,8);
+  const eventRows = upcoming.map(e=>`<div class="list-row"><span>${e.date} ${e.startTime||''} - ${escapeHtml(e.title)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(teamById(e.teamId)?.name||'')})</span></span><span><button class="btn btn-sm btn-outline" data-edit-event="${e.id}">編集</button></span></div>`).join('') || `<div style="color:var(--ink-faint); font-size:13px; padding:8px 0;">今後の予定はありません</div>`;
+
+  return `
+    <div class="section-head"><h2>⚙️ 管理者メニュー</h2></div>
+    <div class="admin-grid">
+      <div class="card pad">
+        <h3 style="font-size:15px; margin:0 0 12px;">チーム / クラス管理</h3>
+        ${teamRows}
+        <div style="display:flex; gap:8px; margin-top:12px;">
+          <input class="tiny-input" id="new-team-name" placeholder="新しいチーム名" style="flex:1;" />
+          <button class="btn btn-sm btn-primary" id="btn-add-team">追加</button>
+        </div>
+      </div>
+      <div class="card pad">
+        <h3 style="font-size:15px; margin:0 0 12px;">記録の種目管理</h3>
+        ${typeRows}
+        <div style="display:flex; gap:6px; margin-top:12px; flex-wrap:wrap;">
+          <input class="tiny-input" id="new-type-name" placeholder="種目名" style="flex:1; min-width:100px;" />
+          <input class="tiny-input" id="new-type-unit" placeholder="単位" style="width:60px;" />
+          <select class="tiny-input" id="new-type-better"><option value="low">小さい方が良い</option><option value="high">大きい方が良い</option></select>
+          <button class="btn btn-sm btn-primary" id="btn-add-type">追加</button>
+        </div>
+      </div>
+      <div class="card pad">
+        <h3 style="font-size:15px; margin:0 0 12px;">直近のイベント</h3>
+        ${eventRows}
+      </div>
+      <div class="card pad">
+        <h3 style="font-size:15px; margin:0 0 12px;">メンバー名簿</h3>
+        ${rosterRows || '<div style="color:var(--ink-faint); font-size:13px;">登録者はまだいません</div>'}
+      </div>
+      <div class="card pad" style="grid-column:1/-1;">
+        <h3 style="font-size:15px; margin:0 0 12px;">設定</h3>
+        <div class="field" style="max-width:320px;"><label>管理者コード（新規登録時に管理者権限を付与する合言葉）</label><input id="admincode-input" value="${escapeHtml(DB.settings.adminCode)}" /></div>
+        <button class="btn btn-outline btn-sm" id="btn-save-admincode">更新する</button>
+      </div>
+    </div>
+  `;
+}
+
+function attachAdminEvents(){
+  document.querySelectorAll('[data-del-team]').forEach(b=>b.addEventListener('click', async ()=>{
+    if(!confirm('このチームを削除しますか？（登録済みのお子さんのチーム設定は残ります）')) return;
+    DB.teams = DB.teams.filter(t=>t.id!==b.dataset.delTeam);
+    await saveKey('teams', DB.teams); toast('削除しました'); render();
+  }));
+  const addTeamBtn = document.getElementById('btn-add-team');
+  if(addTeamBtn) addTeamBtn.addEventListener('click', async ()=>{
+    const name = document.getElementById('new-team-name').value.trim();
+    if(!name) return;
+    DB.teams.push({id:uid('t'), name});
+    await saveKey('teams', DB.teams); toast('チームを追加しました'); render();
+  });
+  document.querySelectorAll('[data-del-type]').forEach(b=>b.addEventListener('click', async ()=>{
+    if(!confirm('この種目を削除しますか？')) return;
+    DB.recordTypes = DB.recordTypes.filter(t=>t.id!==b.dataset.delType);
+    await saveKey('recordTypes', DB.recordTypes); toast('削除しました'); render();
+  }));
+  const addTypeBtn = document.getElementById('btn-add-type');
+  if(addTypeBtn) addTypeBtn.addEventListener('click', async ()=>{
+    const name = document.getElementById('new-type-name').value.trim();
+    const unit = document.getElementById('new-type-unit').value.trim() || '秒';
+    const better = document.getElementById('new-type-better').value;
+    if(!name) return;
+    DB.recordTypes.push({id:uid('r'), name, unit, better});
+    await saveKey('recordTypes', DB.recordTypes); toast('種目を追加しました'); render();
+  });
+  document.querySelectorAll('[data-toggle-role]').forEach(b=>b.addEventListener('click', async ()=>{
+    const targetUid = b.dataset.toggleRole;
+    DB.accounts[targetUid].role = DB.accounts[targetUid].role==='admin' ? 'parent' : 'admin';
+    await saveAccount(targetUid, DB.accounts[targetUid]); toast('権限を更新しました'); render();
+  }));
+  document.querySelectorAll('[data-edit-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.editEvent)));
+  const saveCodeBtn = document.getElementById('btn-save-admincode');
+  if(saveCodeBtn) saveCodeBtn.addEventListener('click', async ()=>{
+    DB.settings.adminCode = document.getElementById('admincode-input').value.trim() || DB.settings.adminCode;
+    await saveKey('settings', DB.settings); toast('更新しました');
+  });
+}
+
+/* ================= MODAL ================= */
+function showModal(html){
+  document.getElementById('modal-root').innerHTML = `<div class="modal-backdrop" id="modal-backdrop"><div class="modal">${html}</div></div>`;
+  document.getElementById('modal-backdrop').addEventListener('click', (e)=>{ if(e.target.id==='modal-backdrop') closeModal(); });
+  const cancel = document.getElementById('modal-cancel');
+  if(cancel) cancel.addEventListener('click', closeModal);
+}
+function closeModal(){ document.getElementById('modal-root').innerHTML=''; }
+
+/* ================= INIT ================= */
+boot();
+</script>
+</body>
+</html>

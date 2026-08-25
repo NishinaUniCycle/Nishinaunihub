@@ -1,0 +1,43 @@
+rules_version = '2';
+
+// くるっとHub 用の Firestore セキュリティルール
+// 「ログインしている部員なら閲覧OK、書き込みは原則ログインしていればOK、
+//   ただしチーム/種目/イベント/設定の管理は管理者(オーナー)のみ」という
+// 小規模な信頼ベースのクラブ運営を想定したシンプルなルールです。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/accounts/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // 保護者・オーナーのアカウント情報（名前・子どもの登録など）
+    match /accounts/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      // 本人の編集、または管理者による権限変更を許可
+      allow update: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // チーム一覧・記録の種目一覧・イベント一覧・管理者コード設定
+    // → 閲覧は全部員OK、変更はオーナーのみ
+    match /app/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // 出欠(attendance)・記録(records)
+    // → 部員全員が閲覧・入力できる共有データ
+    match /shared/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+  }
+}
