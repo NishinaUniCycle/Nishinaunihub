@@ -72,6 +72,9 @@
     width:100%; padding:11px 13px; border-radius:10px; border:1.5px solid var(--line); background:var(--bg);
     color:var(--ink); outline:none; transition:border-color .15s;
   }
+  .field input[type="date"], .field input[type="time"]{
+    -webkit-appearance:none; appearance:none; min-height:auto; line-height:normal;
+  }
   .field input:focus, .field select:focus, .field textarea:focus{border-color:var(--accent); background:var(--surface);}
   .field-icon-wrap{position:relative;}
   .field-icon-wrap input{padding-right:36px;}
@@ -253,7 +256,8 @@
     .modal-backdrop{padding:12px;}
     .modal{max-width:100%; padding:20px 16px;}
     .event-datetime-grid{gap:8px;}
-    .event-datetime-grid input{font-size:14px; padding-left:10px; padding-right:8px;}
+    .event-datetime-grid input{font-size:14px; padding-left:10px;}
+    .event-datetime-grid .field-icon-wrap input{padding-right:32px;}
   }
   .modal-backdrop{ position:fixed; inset:0; background:rgba(32,34,63,.42); display:flex; align-items:center; justify-content:center; padding:20px; z-index:100; }
   .modal{background:var(--surface); border-radius:20px; width:100%; max-width:480px; max-height:88vh; overflow-y:auto; padding:26px; box-shadow:var(--shadow);}
