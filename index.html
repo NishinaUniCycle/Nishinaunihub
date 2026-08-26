@@ -77,6 +77,7 @@
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
     border:none; border-radius:11px; padding:12px 18px; font-weight:700; transition:transform .1s, opacity .15s;
+    white-space:nowrap; flex-shrink:0;
   }
   .btn:active{transform:scale(0.98);}
   .btn-primary{background:var(--accent); color:#fff; width:100%;}
@@ -139,8 +140,8 @@
   .cal-event-time{font-weight:700; color:var(--ink); flex-shrink:0;}
   .cal-event-loc{overflow:hidden; text-overflow:ellipsis; min-width:0;}
   .cal-event-more{font-size:9.5px; color:var(--ink-faint); font-weight:700;}
-  @media (max-width:640px){ .cal-cell{min-height:78px; padding:4px;} .cal-event-line{font-size:8.5px; gap:2px;} .cal-event-dot{width:5px; height:5px;} }
-  @media (max-width:400px){ .cal-cell{min-height:70px;} .cal-event-line{font-size:8px;} .cal-event-loc{display:none;} }
+  @media (max-width:640px){ .cal-cell{min-height:64px; padding:4px;} .cal-event-line{font-size:8.5px; gap:2px;} .cal-event-dot{width:5px; height:5px;} }
+  @media (max-width:400px){ .cal-cell{min-height:56px;} .cal-event-line{font-size:8px;} .cal-event-loc{display:none;} }
 
   .team-chip{display:inline-flex; align-items:center; gap:6px; padding:3px 10px 3px 6px; border-radius:999px; font-size:11.5px; font-weight:700;}
   .team-dot{width:8px; height:8px; border-radius:50%;}
@@ -168,6 +169,10 @@
 
   .attend-summary{display:flex; gap:10px; font-size:12px; color:var(--ink-soft); margin-top:8px; flex-wrap:wrap;}
   .attend-summary b{color:var(--ink);}
+  .attendance-row{align-items:center;}
+  .attendance-row-main{min-width:0; flex:1;}
+  .attendance-row-name{font-weight:600; font-size:14px;}
+  .attendance-row-family{font-size:11.5px; color:var(--ink-faint);}
   .name-pill{display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; margin:2px 3px 0 0;}
   .name-pill.yes{background:var(--success-soft); color:var(--success);}
   .name-pill.no{background:var(--danger-soft); color:var(--danger);}
@@ -193,8 +198,12 @@
 
   .list-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
   .list-row:last-child{border-bottom:none;}
+  .list-row > span:first-child{flex:1; min-width:0;}
+  .map-pin-link{white-space:nowrap;}
   .admin-menu-row{cursor:pointer; padding:14px 4px;}
   .admin-menu-row:hover{background:rgba(47,95,224,0.04);}
+  .admin-menu-left{display:flex; align-items:center; gap:12px; font-size:15px;}
+  .admin-menu-icon{width:26px; flex-shrink:0; text-align:center; font-size:18px; line-height:1;}
   .admin-menu-arrow{color:var(--ink-faint); font-size:18px;}
   .admin-sub-head{display:flex; align-items:center; gap:12px;}
   .admin-sub-head h2{margin:0; font-size:17px;}
@@ -633,6 +642,7 @@ function renderEventRow(e){
   const eligibleChildren = allChildren().filter(c=>openToAll || ids.includes(c.teamId));
   const yes = eligibleChildren.filter(c=>att[c.id]==='yes');
   const no = eligibleChildren.filter(c=>att[c.id]==='no');
+  const pending = eligibleChildren.filter(c=>(att[c.id]||'pending')==='pending');
   const myKids = myChildren().filter(c=>openToAll || ids.includes(c.teamId));
 
   const myControls = myKids.map(c=>{
@@ -663,9 +673,12 @@ function renderEventRow(e){
       </div>
       ${e.note ? `<div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:6px;">${escapeHtml(e.note)}</div>` : ''}
       ${myControls}
-      <div class="attend-summary"><span><b>${yes.length}</b>/${eligibleChildren.length} 名 参加予定</span></div>
-      ${yes.length? `<div>${yes.map(c=>`<span class="name-pill yes">${escapeHtml(c.name)}</span>`).join('')}</div>`:''}
-      ${no.length? `<div>${no.map(c=>`<span class="name-pill no">${escapeHtml(c.name)}</span>`).join('')}</div>`:''}
+      <div class="attend-summary">
+        <span>✅ <b>${yes.length}</b> 参加</span>
+        <span>🚫 <b>${no.length}</b> 欠席</span>
+        <span>❔ <b>${pending.length}</b> 未定</span>
+      </div>
+      ${eligibleChildren.length ? `<button class="btn btn-outline btn-sm" style="margin-top:8px;" data-view-attendance="${e.id}">全員の出欠を見る</button>` : ''}
       ${isAdmin() ? `<div style="margin-top:10px;"><button class="btn btn-outline btn-sm" data-edit-event="${e.id}">編集</button> <button class="btn btn-danger btn-sm" data-del-event="${e.id}">削除</button></div>` : ''}
     </div>
   </div>`;
@@ -690,6 +703,85 @@ function attachCalendarEvents(){
     if(!DB.attendance[eventId]) DB.attendance[eventId]={};
     DB.attendance[eventId][childId] = status;
     await saveKey('attendance', DB.attendance);
+    render();
+  }));
+  document.querySelectorAll('[data-view-attendance]').forEach(b=>b.addEventListener('click', ()=>openAttendanceModal(b.dataset.viewAttendance)));
+}
+
+function openAttendanceModal(eventId){
+  ui.attendanceQuery = '';
+  showModal(renderAttendanceModalBody(eventId));
+  attachAttendanceModalEvents(eventId);
+}
+
+function renderAttendanceModalBody(eventId){
+  const e = DB.events.find(ev=>ev.id===eventId);
+  if(!e) return '';
+  const ids = eventTeamIds(e);
+  const openToAll = eventIsOpenToAll(e);
+  const att = DB.attendance[e.id] || {};
+  let eligible = allChildren().filter(c=>openToAll || ids.includes(c.teamId));
+  const counts = {yes:0, no:0, pending:0};
+  eligible.forEach(c=>{ counts[att[c.id]||'pending']++; });
+  const q = (ui.attendanceQuery||'').trim().toLowerCase();
+  if(q) eligible = eligible.filter(c=>`${c.name} ${c.parentName||''}`.toLowerCase().includes(q));
+  const withStatus = eligible.map(c=>({...c, status: att[c.id]||'pending'}));
+  const statusOrder = {pending:0, no:1, yes:2};
+  const statusLabel = {yes:'参加', no:'欠席', pending:'未定'};
+  withStatus.sort((a,b)=> statusOrder[a.status]-statusOrder[b.status]
+    || (a.parentName||'').localeCompare(b.parentName||'', 'ja')
+    || (a.name||'').localeCompare(b.name||'', 'ja'));
+  const rows = withStatus.map(c=>`
+    <div class="list-row attendance-row">
+      <div class="attendance-row-main">
+        <div class="attendance-row-name">${escapeHtml(c.name)}</div>
+        <div class="attendance-row-family">${escapeHtml(c.parentName||'')}家</div>
+      </div>
+      ${isAdmin() ? `
+      <span class="rsvp-group">
+        <button class="rsvp-btn yes ${c.status==='yes'?'active':''}" data-rsvp-modal="${e.id}|${c.id}|yes">参加</button>
+        <button class="rsvp-btn no ${c.status==='no'?'active':''}" data-rsvp-modal="${e.id}|${c.id}|no">欠席</button>
+        <button class="rsvp-btn pending ${c.status==='pending'?'active':''}" data-rsvp-modal="${e.id}|${c.id}|pending">未定</button>
+      </span>` : `<span class="badge-role">${statusLabel[c.status]}</span>`}
+    </div>`).join('') || `<div style="color:var(--ink-faint); font-size:13px; padding:8px 0;">該当する人がいません</div>`;
+
+  return `
+    <h3 style="margin:0 0 4px;">${escapeHtml(e.title)}の出欠</h3>
+    <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:10px;">${e.date} ${e.startTime||''}〜${e.endTime||''}</div>
+    <div class="attend-summary" style="margin-bottom:10px;">
+      <span>✅ <b>${counts.yes}</b> 参加</span>
+      <span>🚫 <b>${counts.no}</b> 欠席</span>
+      <span>❔ <b>${counts.pending}</b> 未定</span>
+    </div>
+    <input class="tiny-input" id="attendance-search" placeholder="名前・家族名で絞り込み" value="${escapeHtml(ui.attendanceQuery||'')}" style="width:100%; margin-bottom:10px;" />
+    <div id="attendance-rows">${rows}</div>
+    <div class="modal-actions"><button class="btn btn-outline" id="modal-cancel">閉じる</button></div>
+  `;
+}
+
+function attachAttendanceModalEvents(eventId){
+  const cancelBtn = document.getElementById('modal-cancel');
+  if(cancelBtn) cancelBtn.addEventListener('click', closeModal);
+  const search = document.getElementById('attendance-search');
+  if(search){
+    search.addEventListener('input', ()=>{
+      ui.attendanceQuery = search.value;
+      const selStart = search.selectionStart;
+      const modalEl = document.querySelector('.modal');
+      if(modalEl) modalEl.innerHTML = renderAttendanceModalBody(eventId);
+      attachAttendanceModalEvents(eventId);
+      const newSearch = document.getElementById('attendance-search');
+      if(newSearch){ newSearch.focus(); if(selStart!=null) newSearch.setSelectionRange(selStart, selStart); }
+    });
+  }
+  document.querySelectorAll('[data-rsvp-modal]').forEach(b=>b.addEventListener('click', async ()=>{
+    const [eId, childId, status] = b.dataset.rsvpModal.split('|');
+    if(!DB.attendance[eId]) DB.attendance[eId]={};
+    DB.attendance[eId][childId] = status;
+    await saveKey('attendance', DB.attendance);
+    const modalEl = document.querySelector('.modal');
+    if(modalEl) modalEl.innerHTML = renderAttendanceModalBody(eId);
+    attachAttendanceModalEvents(eId);
     render();
   }));
 }
@@ -971,7 +1063,7 @@ function renderAdminView(){
       <div class="card">
         ${ADMIN_SECTIONS.map(s=>`
           <div class="list-row admin-menu-row" data-open-admin-sub="${s.id}" role="button">
-            <span>${s.icon} ${s.label}</span>
+            <span class="admin-menu-left"><span class="admin-menu-icon">${s.icon}</span><span>${s.label}</span></span>
             <span class="admin-menu-arrow">›</span>
           </div>`).join('')}
       </div>
