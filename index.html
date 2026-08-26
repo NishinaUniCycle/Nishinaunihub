@@ -133,10 +133,11 @@
   .cal-cell.selected{background:var(--accent-soft); border-color:var(--accent);}
   .cal-cell .d-num{font-size:12.5px; font-weight:700; color:var(--ink-soft);}
   .cal-events{display:flex; flex-direction:column; gap:2px; width:100%; overflow:hidden;}
-  .cal-event-line{display:flex; align-items:center; gap:3px; font-size:10px; line-height:1.25; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left;}
+  .cal-event-line{display:flex; align-items:center; gap:3px; font-size:10px; line-height:1.25; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; min-width:0;}
+  .cal-event-dots{display:flex; align-items:center; gap:1px; flex-shrink:0;}
   .cal-event-dot{width:6px; height:6px; border-radius:50%; flex-shrink:0;}
   .cal-event-time{font-weight:700; color:var(--ink); flex-shrink:0;}
-  .cal-event-loc{overflow:hidden; text-overflow:ellipsis;}
+  .cal-event-loc{overflow:hidden; text-overflow:ellipsis; min-width:0;}
   .cal-event-more{font-size:9.5px; color:var(--ink-faint); font-weight:700;}
   @media (max-width:640px){ .cal-cell{min-height:78px; padding:4px;} .cal-event-line{font-size:8.5px; gap:2px;} .cal-event-dot{width:5px; height:5px;} }
   @media (max-width:400px){ .cal-cell{min-height:70px;} .cal-event-line{font-size:8px;} .cal-event-loc{display:none;} }
@@ -565,9 +566,9 @@ function renderCalendarView(){
     const maxShow = 3;
     const lines = evs.slice(0,maxShow).map(e=>{
       const ids = eventTeamIds(e);
-      const color = teamColor(ids[0]);
+      const dots = (ids.length?ids:[null]).map(id=>`<span class="cal-event-dot" style="background:${teamColor(id)}"></span>`).join('');
       const loc = e.location ? escapeHtml(e.location) : '';
-      return `<span class="cal-event-line"><span class="cal-event-dot" style="background:${color}"></span><span class="cal-event-time">${escapeHtml(e.startTime||'')}</span><span class="cal-event-loc">${loc}</span></span>`;
+      return `<span class="cal-event-line"><span class="cal-event-dots">${dots}</span><span class="cal-event-time">${escapeHtml(e.startTime||'')}</span><span class="cal-event-loc">${loc}</span></span>`;
     }).join('');
     const more = evs.length>maxShow ? `<span class="cal-event-more">+${evs.length-maxShow}件</span>` : '';
     const cls = ['cal-cell']; if(c.other) cls.push('other-month'); if(ds===todayStr) cls.push('today'); if(ds===ui.selectedDate) cls.push('selected');
