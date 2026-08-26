@@ -145,6 +145,11 @@
   .event-title{font-weight:700; font-size:15px; margin:0 0 4px;}
   .event-meta{font-size:12.5px; color:var(--ink-soft); display:flex; gap:12px; flex-wrap:wrap; margin-bottom:8px;}
   .event-meta span{display:flex; align-items:center; gap:4px;}
+  .map-pin-link{color:var(--accent); font-weight:700; text-decoration:none; font-size:12px;}
+  .map-pin-link:hover{text-decoration:underline;}
+  .loc-chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+  .loc-chip{background:var(--accent-soft); color:var(--accent); border:none; border-radius:999px; padding:6px 12px; font-size:12.5px; font-weight:700;}
+  .loc-chip:active{transform:scale(0.97);}
 
   .rsvp-group{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
   .rsvp-btn{border:1.5px solid var(--line); background:var(--surface); border-radius:9px; padding:6px 11px; font-size:12.5px; font-weight:700; color:var(--ink-soft);}
@@ -272,11 +277,11 @@ if(!CONFIG_NOT_SET){
   googleProvider = new GoogleAuthProvider();
 }
 
-const APP_KEYS = ['teams','recordTypes','events','settings']; // collection: app
+const APP_KEYS = ['teams','recordTypes','events','settings','locations']; // collection: app
 const SHARED_KEYS = ['attendance','records']; // collection: shared
 const TEAM_COLORS = ['#2F5FE0','#F2B400','#E2574C','#1E9E77','#8E5FE0','#2FA9C7','#E07B39'];
 
-let DB = { teams:[], recordTypes:[], accounts:{}, events:[], attendance:{}, records:{}, settings:{adminCode:'nishinaunihub'} };
+let DB = { teams:[], recordTypes:[], accounts:{}, events:[], attendance:{}, records:{}, settings:{adminCode:'nishinaunihub'}, locations:[] };
 let session = null; // {uid, email, name, photoURL}
 let needsSetup = false; // 初回ログイン時、アカウント未作成なら true
 let ui = { view:'calendar', calYear:null, calMonth:null, selectedDate:null, regChildren:[], recordChildId:null, recordTypeFilter:null, setupError:null };
@@ -320,9 +325,9 @@ function toast(msg){
 
 /* ---------------- bootstrap ---------------- */
 async function loadSharedData(){
-  const [teams, recordTypes, events, attendance, records, settings] = await Promise.all([
+  const [teams, recordTypes, events, attendance, records, settings, locations] = await Promise.all([
     loadKey('teams', null), loadKey('recordTypes', null), loadKey('events', null),
-    loadKey('attendance', null), loadKey('records', null), loadKey('settings', null),
+    loadKey('attendance', null), loadKey('records', null), loadKey('settings', null), loadKey('locations', null),
   ]);
   DB.teams = teams || [
     {id:'t1', name:'ちびっこクラス'}, {id:'t2', name:'ジュニアクラス'}, {id:'t3', name:'アドバンスクラス'},
@@ -340,6 +345,8 @@ async function loadSharedData(){
   DB.records = records || {};
   DB.settings = settings || {adminCode:'nishinaunihub'};
   if(!settings) await saveKey('settings', DB.settings);
+  DB.locations = locations || [];
+  if(!locations) await saveKey('locations', DB.locations);
   DB.accounts = await loadAllAccounts();
 }
 
@@ -385,6 +392,7 @@ async function boot(){
 function teamById(id){ return DB.teams.find(t=>t.id===id); }
 function teamColor(id){ const idx = DB.teams.findIndex(t=>t.id===id); return TEAM_COLORS[(idx<0?0:idx) % TEAM_COLORS.length]; }
 function recTypeById(id){ return DB.recordTypes.find(r=>r.id===id); }
+function mapsUrl(text){ return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(text)}`; }
 function allChildren(){
   const out=[];
   Object.entries(DB.accounts).forEach(([accUid,acc])=>{
@@ -612,7 +620,7 @@ function renderEventRow(e){
       <p class="event-title">${escapeHtml(e.title)}</p>
       <div class="event-meta">
         <span class="team-chip" style="background:${color}22; color:${color}"><span class="team-dot" style="background:${color}"></span>${escapeHtml(team?team.name:'全体')}</span>
-        <span>📍 ${escapeHtml(e.location||'未定')}</span>
+        <span>📍 ${escapeHtml(e.location||'未定')}${e.location ? ` <a href="${mapsUrl(e.location)}" target="_blank" rel="noopener" class="map-pin-link" title="Googleマップで開く">🗺️地図</a>` : ''}</span>
       </div>
       ${e.note ? `<div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:6px;">${escapeHtml(e.note)}</div>` : ''}
       ${myControls}
@@ -650,6 +658,7 @@ function attachCalendarEvents(){
 function openEventModal(eventId){
   const ev = eventId ? DB.events.find(e=>e.id===eventId) : {id:null, title:'', teamId:DB.teams[0]?.id||'', date:ui.selectedDate, startTime:'', endTime:'', location:'', note:''};
   const teamOpts = DB.teams.map(t=>`<option value="${t.id}" ${ev.teamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
+  const locChips = DB.locations.map(l=>`<button type="button" class="loc-chip" data-loc-pick="${escapeHtml(l.name)}">📍 ${escapeHtml(l.name)}</button>`).join('');
   showModal(`
     <h3>${eventId?'イベントを編集':'新しいイベント'}</h3>
     <div class="field"><label>タイトル</label><input id="ev-title" value="${escapeHtml(ev.title)}" placeholder="例：通常練習" /></div>
@@ -659,13 +668,20 @@ function openEventModal(eventId){
       <div class="field"><label>開始時刻</label><input id="ev-start" type="time" value="${ev.startTime||''}" /></div>
       <div class="field"><label>終了時刻</label><input id="ev-end" type="time" value="${ev.endTime||''}" /></div>
     </div>
-    <div class="field"><label>場所</label><input id="ev-loc" value="${escapeHtml(ev.location)}" placeholder="例：〇〇小学校 体育館" /></div>
+    <div class="field">
+      <label>場所</label>
+      <input id="ev-loc" value="${escapeHtml(ev.location)}" placeholder="例：〇〇小学校 体育館" />
+      ${locChips ? `<div class="loc-chips">${locChips}</div><div class="field-hint">タップすると入力欄に入ります（管理者メニューで編集できます）</div>` : ''}
+    </div>
     <div class="field"><label>メモ（任意）</label><textarea id="ev-note" rows="2">${escapeHtml(ev.note||'')}</textarea></div>
     <div class="modal-actions">
       <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
       <button class="btn btn-primary" id="ev-save">保存する</button>
     </div>
   `);
+  document.querySelectorAll('[data-loc-pick]').forEach(b=>b.addEventListener('click', ()=>{
+    document.getElementById('ev-loc').value = b.dataset.locPick;
+  }));
   document.getElementById('ev-save').addEventListener('click', async ()=>{
     const title = document.getElementById('ev-title').value.trim();
     const date = document.getElementById('ev-date').value;
@@ -717,7 +733,7 @@ function openChildModal(childId){
   let gradeValue = GRADE_OPTIONS.includes(c.grade) ? c.grade : '';
   showModal(`
     <h3>${childId?'ユーザーを編集':'ユーザーを追加'}</h3>
-    <div class="field"><label>ユーザーの名前</label><input id="ch-name" value="${escapeHtml(c.name)}" placeholder="例：太郎" /></div>
+    <div class="field"><label>ユーザーの名前</label><input id="ch-name" value="${escapeHtml(c.name)}" placeholder="例：静岡 桜子" /></div>
     <div class="field"><label>区分</label><select id="ch-grade"><option value="">選択してください</option>${gradeOptions(gradeValue)}</select></div>
     <div class="field"><label>チーム / クラス</label><select id="ch-team">${teamOpts}</select></div>
     ${c.grade && !GRADE_OPTIONS.includes(c.grade) ? `<div class="field-hint" style="margin-top:-8px;margin-bottom:12px;">以前の登録「${escapeHtml(c.grade)}」もそのまま保持できます。必要なら5区分から選び直してください。</div>` : ''}
@@ -885,6 +901,7 @@ function openRecordModal(){
 function renderAdminView(){
   const teamRows = DB.teams.map(t=>`<div class="list-row"><span>${escapeHtml(t.name)}</span><button class="btn btn-sm btn-danger" data-del-team="${t.id}">削除</button></div>`).join('');
   const typeRows = DB.recordTypes.map(rt=>`<div class="list-row"><span>${escapeHtml(rt.name)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(rt.unit)} / ${rt.better==='low'?'小さいほど良い':'大きいほど良い'})</span></span><button class="btn btn-sm btn-danger" data-del-type="${rt.id}">削除</button></div>`).join('');
+  const locationRows = DB.locations.map(l=>`<div class="list-row"><span>📍 ${escapeHtml(l.name)} <a href="${mapsUrl(l.name)}" target="_blank" rel="noopener" class="map-pin-link">地図で見る</a></span><button class="btn btn-sm btn-danger" data-del-location="${l.id}">削除</button></div>`).join('');
   const rosterRows = Object.entries(DB.accounts).map(([accUid,acc])=>`
     <div class="list-row" style="flex-wrap:wrap;">
       <span>${escapeHtml(acc.name)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(acc.email||'')})</span> ${acc.role==='admin'?'<span class="badge-role">オーナー</span>':''}
@@ -915,6 +932,15 @@ function renderAdminView(){
           <select class="tiny-input" id="new-type-better"><option value="low">小さい方が良い</option><option value="high">大きい方が良い</option></select>
           <button class="btn btn-sm btn-primary" id="btn-add-type">追加</button>
         </div>
+      </div>
+      <div class="card pad">
+        <h3 style="font-size:15px; margin:0 0 12px;">よく使う場所</h3>
+        ${locationRows || '<div style="color:var(--ink-faint); font-size:13px;">まだ登録されていません</div>'}
+        <div style="display:flex; gap:8px; margin-top:12px;">
+          <input class="tiny-input" id="new-location-name" placeholder="例：西奈小学校 体育館" style="flex:1;" />
+          <button class="btn btn-sm btn-primary" id="btn-add-location">追加</button>
+        </div>
+        <div class="field-hint" style="margin-top:8px;">ここに登録した場所は、イベント作成時に候補として選べます。</div>
       </div>
       <div class="card pad">
         <h3 style="font-size:15px; margin:0 0 12px;">直近のイベント</h3>
@@ -951,6 +977,18 @@ function attachAdminEvents(){
     DB.recordTypes = DB.recordTypes.filter(t=>t.id!==b.dataset.delType);
     await saveKey('recordTypes', DB.recordTypes); toast('削除しました'); render();
   }));
+  document.querySelectorAll('[data-del-location]').forEach(b=>b.addEventListener('click', async ()=>{
+    if(!confirm('この場所を削除しますか？')) return;
+    DB.locations = DB.locations.filter(l=>l.id!==b.dataset.delLocation);
+    await saveKey('locations', DB.locations); toast('削除しました'); render();
+  }));
+  const addLocationBtn = document.getElementById('btn-add-location');
+  if(addLocationBtn) addLocationBtn.addEventListener('click', async ()=>{
+    const name = document.getElementById('new-location-name').value.trim();
+    if(!name) return;
+    DB.locations.push({id:uid('loc'), name});
+    await saveKey('locations', DB.locations); toast('場所を追加しました'); render();
+  });
   const addTypeBtn = document.getElementById('btn-add-type');
   if(addTypeBtn) addTypeBtn.addEventListener('click', async ()=>{
     const name = document.getElementById('new-type-name').value.trim();
