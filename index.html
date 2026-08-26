@@ -243,7 +243,7 @@
   /* Event modal: keep every control visually consistent across desktop and iPhone */
   .modal .field{margin-bottom:18px;}
   .modal .field:last-of-type{margin-bottom:0;}
-  .modal .field input,
+  .modal .field input:not([type="checkbox"]),
   .modal .field select,
   .modal .field textarea{
     background:#F8F8F6;
@@ -252,6 +252,19 @@
     padding:12px 14px;
     min-height:46px;
     line-height:1.35;
+  }
+  .modal .team-check input[type="checkbox"]{
+    background:var(--surface);
+    border-color:var(--line);
+    border-radius:6px;
+    padding:0;
+    min-height:0;
+    width:20px;
+    height:20px;
+  }
+  .modal .team-check input[type="checkbox"]:checked{
+    background:var(--accent);
+    border-color:var(--accent);
   }
   .modal .field textarea{min-height:76px; resize:vertical;}
   .modal .field input:focus,
