@@ -69,18 +69,20 @@
   .field{margin-bottom:16px;}
   .field label{display:block; font-size:12.5px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;}
   .field input, .field select, .field textarea{
-    width:100%; padding:11px 13px; border-radius:10px; border:1.5px solid var(--line); background:var(--bg);
-    color:var(--ink); outline:none; transition:border-color .15s;
+    width:100%; min-width:0; border-radius:12px; border:1.5px solid var(--line); background:var(--bg);
+    color:var(--ink); outline:none; transition:border-color .15s, background .15s; box-shadow:none;
+  }
+  .field input, .field select{
+    min-height:46px; padding:11px 14px; line-height:1.35;
+  }
+  .field textarea{
+    min-height:110px; padding:12px 14px; line-height:1.6; resize:vertical;
   }
   .field input[type="date"], .field input[type="time"]{
-    -webkit-appearance:none; appearance:none; min-height:auto; line-height:normal;
+    -webkit-appearance:auto; appearance:auto; line-height:normal;
   }
-  .field input:focus, .field select:focus, .field textarea:focus{border-color:var(--accent); background:var(--surface);}
-  .field-icon-wrap{position:relative;}
-  .field-icon-wrap input{padding-right:36px;}
-  .field-icon-wrap::after{
-    content:attr(data-icon); position:absolute; right:12px; top:50%; transform:translateY(-50%);
-    pointer-events:none; font-size:15px; opacity:.5;
+  .field input:focus, .field select:focus, .field textarea:focus{
+    border-color:var(--accent); background:var(--surface); box-shadow:0 0 0 3px rgba(47,95,224,.10);
   }
   .field-hint{font-size:11.5px; color:var(--ink-faint); margin-top:5px;}
   .btn{
@@ -229,9 +231,30 @@
   }
   .tiny-input{padding:7px 9px; border-radius:8px; border:1.5px solid var(--line); font-size:13px;}
 
-  .event-datetime-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  /* Event modal: keep every control visually consistent across desktop and iPhone */
+  .modal .field{margin-bottom:18px;}
+  .modal .field:last-of-type{margin-bottom:0;}
+  .modal .field input,
+  .modal .field select,
+  .modal .field textarea{
+    background:#F8F8F6;
+    border-color:var(--line);
+    border-radius:12px;
+    padding:12px 14px;
+    min-height:46px;
+    line-height:1.35;
+  }
+  .modal .field textarea{min-height:76px; resize:vertical;}
+  .modal .field input:focus,
+  .modal .field select:focus,
+  .modal .field textarea:focus{background:var(--surface); border-color:var(--accent);}
+  .modal .field-icon-wrap input{padding-right:42px;}
+  .modal .field-icon-wrap::after{right:14px;}
+  .event-datetime-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-bottom:18px;}
   .event-datetime-grid .field{min-width:0; margin-bottom:0;}
   .event-datetime-grid input{width:100%; min-width:0; max-width:100%;}
+  .team-check-list{gap:8px;}
+  .team-check{min-height:44px; padding:10px 12px; border-radius:12px;}
   .children-manage-list{display:flex; flex-direction:column; gap:10px;}
   .child-manage-card{border:1px solid var(--line); border-radius:14px; padding:14px; background:var(--bg);}
   .child-manage-head{display:flex; align-items:center; justify-content:space-between; gap:10px;}
@@ -254,13 +277,19 @@
     .pad{padding:16px;}
     .section-head h2{font-size:18px;}
     .modal-backdrop{padding:12px;}
-    .modal{max-width:100%; padding:20px 16px;}
-    .event-datetime-grid{gap:8px;}
-    .event-datetime-grid input{font-size:14px; padding-left:10px;}
-    .event-datetime-grid .field-icon-wrap input{padding-right:32px;}
+    .modal{max-width:100%; padding:22px 16px; border-radius:18px; max-height:calc(100vh - 24px);}
+    .modal h3{margin-bottom:20px;}
+    .modal .field{margin-bottom:16px;}
+    .modal .field input,
+    .modal .field select,
+    .modal .field textarea{font-size:16px; padding:12px; min-height:48px;}
+    .event-datetime-grid{grid-template-columns:1fr; gap:16px; margin-bottom:16px;}
+    .event-datetime-grid .field-icon-wrap input{padding-right:40px;}
+    .modal-actions{gap:8px; margin-top:20px;}
+    .modal-actions .btn{min-height:48px; padding:11px 12px;}
   }
   .modal-backdrop{ position:fixed; inset:0; background:rgba(32,34,63,.42); display:flex; align-items:center; justify-content:center; padding:20px; z-index:100; }
-  .modal{background:var(--surface); border-radius:20px; width:100%; max-width:480px; max-height:88vh; overflow-y:auto; padding:26px; box-shadow:var(--shadow);}
+  .modal{background:var(--surface); border-radius:20px; width:100%; max-width:520px; max-height:88vh; overflow-y:auto; padding:26px; box-shadow:var(--shadow);}
   .modal h3{margin:0 0 18px; font-size:18px;}
   .modal-actions{display:flex; gap:10px; margin-top:18px;}
   .modal-actions .btn{flex:1;}
@@ -808,15 +837,16 @@ function openEventModal(eventId){
   const locList = DB.locations.map(l=>`<button type="button" class="loc-list-item" data-loc-pick="${escapeHtml(l.name)}">📍 ${escapeHtml(l.name)}</button>`).join('');
   showModal(`
     <h3>${eventId?'イベントを編集':'新しいイベント'}</h3>
+    <div class="event-form">
     <div class="field"><label>タイトル</label><input id="ev-title" value="${escapeHtml(ev.title)}" placeholder="例：通常練習" /></div>
     <div class="field">
       <label>対象チーム（複数選択可）</label>
       <div class="team-check-list">${teamChecks}</div>
     </div>
-    <div class="field"><label>日付</label><div class="field-icon-wrap" data-icon="📅"><input id="ev-date" type="date" value="${ev.date||''}" /></div></div>
+    <div class="field"><label>日付</label><input id="ev-date" type="date" value="${ev.date||''}" /></div>
     <div class="event-datetime-grid">
-      <div class="field"><label>開始時刻</label><div class="field-icon-wrap" data-icon="🕐"><input id="ev-start" type="time" value="${ev.startTime||''}" /></div></div>
-      <div class="field"><label>終了時刻</label><div class="field-icon-wrap" data-icon="🕐"><input id="ev-end" type="time" value="${ev.endTime||''}" /></div></div>
+      <div class="field"><label>開始時刻</label><input id="ev-start" type="time" value="${ev.startTime||''}" /></div>
+      <div class="field"><label>終了時刻</label><input id="ev-end" type="time" value="${ev.endTime||''}" /></div>
     </div>
     <div class="field">
       <label>場所</label>
@@ -824,6 +854,7 @@ function openEventModal(eventId){
       ${locList ? `<div class="loc-list">${locList}</div><div class="field-hint">タップすると入力欄に入ります（管理者メニューで編集できます）</div>` : ''}
     </div>
     <div class="field"><label>メモ（任意）</label><textarea id="ev-note" rows="2">${escapeHtml(ev.note||'')}</textarea></div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
       <button class="btn btn-primary" id="ev-save">保存する</button>
