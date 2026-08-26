@@ -191,10 +191,23 @@
   .type-toggle button{border:1.5px solid var(--line); background:var(--surface); padding:6px 13px; border-radius:999px; font-size:12.5px; font-weight:700; color:var(--ink-soft);}
   .type-toggle button.active{background:var(--ink); color:#fff; border-color:var(--ink);}
 
-  .admin-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
-  @media (max-width:800px){ .admin-grid{grid-template-columns:1fr;} }
   .list-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
   .list-row:last-child{border-bottom:none;}
+  .admin-menu-row{cursor:pointer; padding:14px 4px;}
+  .admin-menu-row:hover{background:rgba(47,95,224,0.04);}
+  .admin-menu-arrow{color:var(--ink-faint); font-size:18px;}
+  .admin-sub-head{display:flex; align-items:center; gap:12px;}
+  .admin-sub-head h2{margin:0; font-size:17px;}
+  .roster-toolbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;}
+  .roster-count{font-size:12px; color:var(--ink-faint); white-space:nowrap;}
+  .roster-row{align-items:flex-start;}
+  .roster-row-main{min-width:0; flex:1;}
+  .roster-row-name{font-weight:600;}
+  .roster-row-sub{font-size:12px; color:var(--ink-soft); margin-top:2px; word-break:break-all;}
+  @media (max-width:480px){
+    .roster-row{flex-direction:column; align-items:stretch; gap:8px;}
+    .roster-row button{align-self:flex-end;}
+  }
   .tiny-input{padding:7px 9px; border-radius:8px; border:1.5px solid var(--line); font-size:13px;}
 
   .event-datetime-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
@@ -293,7 +306,7 @@ const TEAM_COLORS = ['#2F5FE0','#F2B400','#E2574C','#1E9E77','#8E5FE0','#2FA9C7'
 let DB = { teams:[], recordTypes:[], accounts:{}, events:[], attendance:{}, records:{}, settings:{adminCode:'nishinaunihub'}, locations:[] };
 let session = null; // {uid, email, name, photoURL}
 let needsSetup = false; // 初回ログイン時、アカウント未作成なら true
-let ui = { view:'calendar', calYear:null, calMonth:null, selectedDate:null, regChildren:[], recordChildId:null, recordTypeFilter:null, setupError:null };
+let ui = { view:'calendar', calYear:null, calMonth:null, selectedDate:null, regChildren:[], recordChildId:null, recordTypeFilter:null, setupError:null, adminSub:null, rosterQuery:'' };
 
 /* ---------------- storage helpers (Firestore) ---------------- */
 function collFor(key){ return SHARED_KEYS.includes(key) ? 'shared' : 'app'; }
@@ -533,16 +546,16 @@ function renderShell(){
   <div class="nav-tabs">
     ${tabs.map(t=>`<button class="nav-tab ${ui.view===t.id?'active':''}" data-view="${t.id}">${t.icon} ${t.label}</button>`).join('')}
   </div>
-  <main id="main-area">${ ui.view==='calendar' ? renderCalendarView() : ui.view==='records' ? renderRecordsView() : ui.view==='children' ? renderChildrenView() : renderAdminView() }</main>
+  <main id="main-area">${ ui.view==='calendar' ? renderCalendarView() : ui.view==='records' ? renderRecordsView() : ui.view==='children' ? renderChildrenView() : (ui.view==='admin' && isAdmin()) ? renderAdminView() : renderCalendarView() }</main>
   `;
 }
 function attachShellEvents(){
   document.getElementById('btn-logout').addEventListener('click', async ()=>{ await signOut(auth); });
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click', ()=>{ ui.view=b.dataset.view; render(); }));
-  if(ui.view==='calendar') attachCalendarEvents();
   if(ui.view==='records') attachRecordsEvents();
-  if(ui.view==='children') attachChildrenEvents();
-  if(ui.view==='admin') attachAdminEvents();
+  else if(ui.view==='children') attachChildrenEvents();
+  else if(ui.view==='admin' && isAdmin()) attachAdminEvents();
+  else attachCalendarEvents();
 }
 
 /* ================= CALENDAR ================= */
@@ -933,69 +946,135 @@ function openRecordModal(){
   });
 }
 
-/* ================= ADMIN ================= */
-function renderAdminView(){
-  const teamRows = DB.teams.map(t=>`<div class="list-row"><span>${escapeHtml(t.name)}</span><button class="btn btn-sm btn-danger" data-del-team="${t.id}">削除</button></div>`).join('');
-  const typeRows = DB.recordTypes.map(rt=>`<div class="list-row"><span>${escapeHtml(rt.name)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(rt.unit)} / ${rt.better==='low'?'小さいほど良い':'大きいほど良い'})</span></span><button class="btn btn-sm btn-danger" data-del-type="${rt.id}">削除</button></div>`).join('');
-  const locationRows = DB.locations.map(l=>`<div class="list-row"><span>📍 ${escapeHtml(l.name)} <a href="${mapsUrl(l.name)}" target="_blank" rel="noopener" class="map-pin-link">地図で見る</a></span><button class="btn btn-sm btn-danger" data-del-location="${l.id}">削除</button></div>`).join('');
-  const rosterRows = Object.entries(DB.accounts).map(([accUid,acc])=>`
-    <div class="list-row" style="flex-wrap:wrap;">
-      <span>${escapeHtml(acc.name)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(acc.email||'')})</span> ${acc.role==='admin'?'<span class="badge-role">オーナー</span>':''}
-        <div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${(acc.children||[]).map(c=>escapeHtml(c.name)).join('、') || '（ユーザー未登録）'}</div>
-      </span>
-      <button class="btn btn-sm btn-outline" data-toggle-role="${accUid}">${acc.role==='admin'?'一般に戻す':'管理者にする'}</button>
-    </div>`).join('');
-  const upcoming = DB.events.slice().sort((a,b)=>a.date.localeCompare(b.date)).filter(e=>e.date>=fmtDate(new Date())).slice(0,8);
-  const eventRows = upcoming.map(e=>`<div class="list-row"><span>${e.date} ${e.startTime||''} - ${escapeHtml(e.title)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(eventTeamIds(e).map(id=>teamById(id)?.name).filter(Boolean).join('・')||'全体')})</span></span><span><button class="btn btn-sm btn-outline" data-edit-event="${e.id}">編集</button></span></div>`).join('') || `<div style="color:var(--ink-faint); font-size:13px; padding:8px 0;">今後の予定はありません</div>`;
+function renderAdminInPlace(){
+  const prevEl = document.getElementById('roster-search');
+  const selStart = prevEl ? prevEl.selectionStart : null;
+  render();
+  const newEl = document.getElementById('roster-search');
+  if(newEl){ newEl.focus(); if(selStart!=null) newEl.setSelectionRange(selStart, selStart); }
+}
 
+/* ================= ADMIN ================= */
+const ADMIN_SECTIONS = [
+  {id:'teams', icon:'👥', label:'チーム / クラス管理'},
+  {id:'types', icon:'📏', label:'記録の種目管理'},
+  {id:'locations', icon:'📍', label:'よく使う場所'},
+  {id:'events', icon:'🗓️', label:'直近のイベント'},
+  {id:'roster', icon:'📋', label:'メンバー名簿'},
+  {id:'settings', icon:'🔧', label:'設定'},
+];
+
+function renderAdminView(){
+  if(!ui.adminSub){
+    return `
+      <div class="section-head"><h2>⚙️ 管理者メニュー</h2></div>
+      <div class="card">
+        ${ADMIN_SECTIONS.map(s=>`
+          <div class="list-row admin-menu-row" data-open-admin-sub="${s.id}" role="button">
+            <span>${s.icon} ${s.label}</span>
+            <span class="admin-menu-arrow">›</span>
+          </div>`).join('')}
+      </div>
+    `;
+  }
+  const section = ADMIN_SECTIONS.find(s=>s.id===ui.adminSub);
   return `
-    <div class="section-head"><h2>⚙️ 管理者メニュー</h2></div>
-    <div class="admin-grid">
-      <div class="card pad">
-        <h3 style="font-size:15px; margin:0 0 12px;">チーム / クラス管理</h3>
-        ${teamRows}
-        <div style="display:flex; gap:8px; margin-top:12px;">
-          <input class="tiny-input" id="new-team-name" placeholder="新しいチーム名" style="flex:1;" />
-          <button class="btn btn-sm btn-primary" id="btn-add-team">追加</button>
-        </div>
-      </div>
-      <div class="card pad">
-        <h3 style="font-size:15px; margin:0 0 12px;">記録の種目管理</h3>
-        ${typeRows}
-        <div style="display:flex; gap:6px; margin-top:12px; flex-wrap:wrap;">
-          <input class="tiny-input" id="new-type-name" placeholder="種目名" style="flex:1; min-width:100px;" />
-          <input class="tiny-input" id="new-type-unit" placeholder="単位" style="width:60px;" />
-          <select class="tiny-input" id="new-type-better"><option value="low">小さい方が良い</option><option value="high">大きい方が良い</option></select>
-          <button class="btn btn-sm btn-primary" id="btn-add-type">追加</button>
-        </div>
-      </div>
-      <div class="card pad">
-        <h3 style="font-size:15px; margin:0 0 12px;">よく使う場所</h3>
-        ${locationRows || '<div style="color:var(--ink-faint); font-size:13px;">まだ登録されていません</div>'}
-        <div style="display:flex; gap:8px; margin-top:12px;">
-          <input class="tiny-input" id="new-location-name" placeholder="例：西奈小学校 体育館" style="flex:1;" />
-          <button class="btn btn-sm btn-primary" id="btn-add-location">追加</button>
-        </div>
-        <div class="field-hint" style="margin-top:8px;">ここに登録した場所は、イベント作成時に候補として選べます。</div>
-      </div>
-      <div class="card pad">
-        <h3 style="font-size:15px; margin:0 0 12px;">直近のイベント</h3>
-        ${eventRows}
-      </div>
-      <div class="card pad">
-        <h3 style="font-size:15px; margin:0 0 12px;">メンバー名簿</h3>
-        ${rosterRows || '<div style="color:var(--ink-faint); font-size:13px;">登録者はまだいません</div>'}
-      </div>
-      <div class="card pad" style="grid-column:1/-1;">
-        <h3 style="font-size:15px; margin:0 0 12px;">設定</h3>
-        <div class="field" style="max-width:320px;"><label>管理者コード（新規登録時に管理者権限を付与する合言葉）</label><input id="admincode-input" value="${escapeHtml(DB.settings.adminCode)}" /></div>
-        <button class="btn btn-outline btn-sm" id="btn-save-admincode">更新する</button>
-      </div>
+    <div class="section-head admin-sub-head">
+      <button class="btn btn-outline btn-sm" id="btn-admin-back">‹ 戻る</button>
+      <h2>${section.icon} ${section.label}</h2>
     </div>
+    <div class="card pad">${renderAdminSection(ui.adminSub)}</div>
   `;
 }
 
+function renderAdminSection(sectionId){
+  if(sectionId==='teams'){
+    const teamRows = DB.teams.map(t=>`<div class="list-row"><span>${escapeHtml(t.name)}</span><button class="btn btn-sm btn-danger" data-del-team="${t.id}">削除</button></div>`).join('');
+    return `
+      ${teamRows || '<div style="color:var(--ink-faint); font-size:13px;">まだ登録されていません</div>'}
+      <div style="display:flex; gap:8px; margin-top:12px;">
+        <input class="tiny-input" id="new-team-name" placeholder="新しいチーム名" style="flex:1;" />
+        <button class="btn btn-sm btn-primary" id="btn-add-team">追加</button>
+      </div>
+    `;
+  }
+  if(sectionId==='types'){
+    const typeRows = DB.recordTypes.map(rt=>`<div class="list-row"><span>${escapeHtml(rt.name)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(rt.unit)} / ${rt.better==='low'?'小さいほど良い':'大きいほど良い'})</span></span><button class="btn btn-sm btn-danger" data-del-type="${rt.id}">削除</button></div>`).join('');
+    return `
+      ${typeRows || '<div style="color:var(--ink-faint); font-size:13px;">まだ登録されていません</div>'}
+      <div style="display:flex; gap:6px; margin-top:12px; flex-wrap:wrap;">
+        <input class="tiny-input" id="new-type-name" placeholder="種目名" style="flex:1; min-width:100px;" />
+        <input class="tiny-input" id="new-type-unit" placeholder="単位" style="width:60px;" />
+        <select class="tiny-input" id="new-type-better"><option value="low">小さい方が良い</option><option value="high">大きい方が良い</option></select>
+        <button class="btn btn-sm btn-primary" id="btn-add-type">追加</button>
+      </div>
+    `;
+  }
+  if(sectionId==='locations'){
+    const locationRows = DB.locations.map(l=>`<div class="list-row"><span>📍 ${escapeHtml(l.name)} <a href="${mapsUrl(l.name)}" target="_blank" rel="noopener" class="map-pin-link">地図で見る</a></span><button class="btn btn-sm btn-danger" data-del-location="${l.id}">削除</button></div>`).join('');
+    return `
+      ${locationRows || '<div style="color:var(--ink-faint); font-size:13px;">まだ登録されていません</div>'}
+      <div style="display:flex; gap:8px; margin-top:12px;">
+        <input class="tiny-input" id="new-location-name" placeholder="例：西奈小学校 体育館" style="flex:1;" />
+        <button class="btn btn-sm btn-primary" id="btn-add-location">追加</button>
+      </div>
+      <div class="field-hint" style="margin-top:8px;">ここに登録した場所は、イベント作成時に候補として選べます。</div>
+    `;
+  }
+  if(sectionId==='events'){
+    const upcoming = DB.events.slice().sort((a,b)=>a.date.localeCompare(b.date)).filter(e=>e.date>=fmtDate(new Date())).slice(0,8);
+    const eventRows = upcoming.map(e=>`<div class="list-row"><span>${e.date} ${e.startTime||''} - ${escapeHtml(e.title)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(eventTeamIds(e).map(id=>teamById(id)?.name).filter(Boolean).join('・')||'全体')})</span></span><span><button class="btn btn-sm btn-outline" data-edit-event="${e.id}">編集</button></span></div>`).join('') || `<div style="color:var(--ink-faint); font-size:13px; padding:8px 0;">今後の予定はありません</div>`;
+    return eventRows;
+  }
+  if(sectionId==='roster'){
+    const allEntries = Object.entries(DB.accounts);
+    const q = (ui.rosterQuery||'').trim().toLowerCase();
+    const filtered = allEntries.filter(([,acc])=>{
+      if(!q) return true;
+      const haystack = [acc.name, acc.email, ...(acc.children||[]).map(c=>c.name)].join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+    filtered.sort((a,b)=>{
+      const [,aAcc] = a, [,bAcc] = b;
+      if((aAcc.role==='admin') !== (bAcc.role==='admin')) return aAcc.role==='admin' ? -1 : 1;
+      return (aAcc.name||'').localeCompare(bAcc.name||'', 'ja');
+    });
+    const rosterRows = filtered.map(([accUid,acc])=>`
+      <div class="list-row roster-row">
+        <div class="roster-row-main">
+          <div class="roster-row-name">${escapeHtml(acc.name)} ${acc.role==='admin'?'<span class="badge-role">オーナー</span>':''}</div>
+          <div class="roster-row-sub">${escapeHtml(acc.email||'')}</div>
+          <div class="roster-row-sub">${(acc.children||[]).map(c=>escapeHtml(c.name)).join('、') || '（ユーザー未登録）'}</div>
+        </div>
+        <button class="btn btn-sm btn-outline" data-toggle-role="${accUid}">${acc.role==='admin'?'一般に戻す':'管理者にする'}</button>
+      </div>`).join('');
+    return `
+      <div class="roster-toolbar">
+        <input class="tiny-input" id="roster-search" placeholder="名前・メール・子どもの名前で絞り込み" value="${escapeHtml(ui.rosterQuery||'')}" style="flex:1;" />
+        <span class="roster-count">全${allEntries.length}名${q?`（${filtered.length}件ヒット）`:''}</span>
+      </div>
+      ${rosterRows || '<div style="color:var(--ink-faint); font-size:13px; padding:8px 0;">該当するメンバーがいません</div>'}
+    `;
+  }
+  if(sectionId==='settings'){
+    return `
+      <div class="field" style="max-width:320px;"><label>管理者コード（新規登録時に管理者権限を付与する合言葉）</label><input id="admincode-input" value="${escapeHtml(DB.settings.adminCode)}" /></div>
+      <button class="btn btn-outline btn-sm" id="btn-save-admincode">更新する</button>
+    `;
+  }
+  return '';
+}
+
 function attachAdminEvents(){
+  document.querySelectorAll('[data-open-admin-sub]').forEach(el=>el.addEventListener('click', ()=>{
+    ui.adminSub = el.dataset.openAdminSub; ui.rosterQuery=''; render();
+  }));
+  const backBtn = document.getElementById('btn-admin-back');
+  if(backBtn) backBtn.addEventListener('click', ()=>{ ui.adminSub=null; render(); });
+  const rosterSearch = document.getElementById('roster-search');
+  if(rosterSearch){
+    rosterSearch.addEventListener('input', ()=>{ ui.rosterQuery = rosterSearch.value; renderAdminInPlace(); });
+  }
   document.querySelectorAll('[data-del-team]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('このチームを削除しますか？（登録済みのユーザーのチーム設定は残ります）')) return;
     DB.teams = DB.teams.filter(t=>t.id!==b.dataset.delTeam);
