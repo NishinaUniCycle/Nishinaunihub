@@ -403,6 +403,8 @@ function teamColor(id){ const idx = DB.teams.findIndex(t=>t.id===id); return TEA
 function recTypeById(id){ return DB.recordTypes.find(r=>r.id===id); }
 function mapsUrl(text){ return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(text)}`; }
 function eventTeamIds(e){ return e.teamIds || (e.teamId ? [e.teamId] : []); }
+function isOpenTeam(id){ const t=teamById(id); return !!t && t.name==='フリー'; }
+function eventIsOpenToAll(e){ return eventTeamIds(e).some(isOpenTeam); }
 function allChildren(){
   const out=[];
   Object.entries(DB.accounts).forEach(([accUid,acc])=>{
@@ -614,10 +616,11 @@ function renderEventRow(e){
   const teams = ids.map(id=>teamById(id)).filter(Boolean);
   const color = teams[0] ? teamColor(teams[0].id) : '#9A9CBB';
   const att = DB.attendance[e.id] || {};
-  const eligibleChildren = allChildren().filter(c=>ids.includes(c.teamId));
+  const openToAll = eventIsOpenToAll(e);
+  const eligibleChildren = allChildren().filter(c=>openToAll || ids.includes(c.teamId));
   const yes = eligibleChildren.filter(c=>att[c.id]==='yes');
   const no = eligibleChildren.filter(c=>att[c.id]==='no');
-  const myKids = myChildren().filter(c=>ids.includes(c.teamId));
+  const myKids = myChildren().filter(c=>openToAll || ids.includes(c.teamId));
 
   const myControls = myKids.map(c=>{
     const st = att[c.id] || 'pending';
