@@ -73,6 +73,12 @@
     color:var(--ink); outline:none; transition:border-color .15s;
   }
   .field input:focus, .field select:focus, .field textarea:focus{border-color:var(--accent); background:var(--surface);}
+  .field-icon-wrap{position:relative;}
+  .field-icon-wrap input{padding-right:36px;}
+  .field-icon-wrap::after{
+    content:attr(data-icon); position:absolute; right:12px; top:50%; transform:translateY(-50%);
+    pointer-events:none; font-size:15px; opacity:.5;
+  }
   .field-hint{font-size:11.5px; color:var(--ink-faint); margin-top:5px;}
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
@@ -87,7 +93,7 @@
   .btn-ghost{background:transparent; color:var(--accent); border:1.5px solid var(--accent-soft);}
   .btn-outline{background:var(--surface); color:var(--ink); border:1.5px solid var(--line);}
   .btn-danger{background:var(--danger-soft); color:var(--danger);}
-  .btn-sm{padding:7px 12px; font-size:13px; border-radius:9px;}
+  .btn-sm{padding:7px 12px; font-size:13px; border-radius:9px; width:auto;}
   .child-row{display:flex; gap:8px; margin-bottom:8px; align-items:center;}
   .child-row input, .child-row select{flex:1; min-width:0;}
 
@@ -126,8 +132,8 @@
   .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:6px;}
   .cal-dow{text-align:center; font-size:11.5px; font-weight:700; color:var(--ink-faint); padding-bottom:4px;}
   .cal-cell{
-    position:relative; min-height:92px; border-radius:12px; background:var(--bg); border:1.5px solid transparent;
-    padding:6px; display:flex; flex-direction:column; gap:3px; text-align:left; align-items:stretch;
+    position:relative; height:92px; border-radius:12px; background:var(--bg); border:1.5px solid transparent;
+    padding:6px; display:flex; flex-direction:column; gap:3px; text-align:left; align-items:stretch; overflow:hidden;
   }
   .cal-cell.other-month{opacity:.35;}
   .cal-cell.today{border-color:var(--gold);}
@@ -140,8 +146,8 @@
   .cal-event-time{font-weight:700; color:var(--ink); flex-shrink:0;}
   .cal-event-loc{overflow:hidden; text-overflow:ellipsis; min-width:0;}
   .cal-event-more{font-size:9.5px; color:var(--ink-faint); font-weight:700;}
-  @media (max-width:640px){ .cal-cell{min-height:64px; padding:4px;} .cal-event-line{font-size:8.5px; gap:2px;} .cal-event-dot{width:5px; height:5px;} }
-  @media (max-width:400px){ .cal-cell{min-height:56px;} .cal-event-line{font-size:8px;} .cal-event-loc{display:none;} }
+  @media (max-width:640px){ .cal-cell{height:76px; padding:4px;} .cal-event-line{font-size:8.5px; gap:2px;} .cal-event-dot{width:5px; height:5px;} }
+  @media (max-width:400px){ .cal-cell{height:66px;} .cal-event-line{font-size:8px;} .cal-event-loc{display:none;} }
 
   .team-chip{display:inline-flex; align-items:center; gap:6px; padding:3px 10px 3px 6px; border-radius:999px; font-size:11.5px; font-weight:700;}
   .team-dot{width:8px; height:8px; border-radius:50%;}
@@ -157,8 +163,9 @@
   .loc-list{display:flex; flex-direction:column; gap:5px; margin-top:8px; max-height:230px; overflow-y:auto;}
   .loc-list-item{display:flex; align-items:center; gap:6px; background:var(--bg); border:none; border-radius:10px; padding:10px 12px; text-align:left; width:100%; font-size:13.5px; font-weight:700; color:var(--ink);}
   .loc-list-item:active{background:var(--accent-soft); color:var(--accent);}
-  .team-check-list{display:flex; flex-direction:column; gap:2px;}
-  .team-check{display:flex; align-items:center; gap:8px; padding:9px 4px; font-size:14px; font-weight:700; color:var(--ink); cursor:pointer;}
+  .team-check-list{display:flex; flex-direction:column; gap:6px;}
+  .team-check{display:flex; align-items:center; gap:8px; padding:9px 10px; font-size:14px; font-weight:700; color:var(--ink); cursor:pointer; border-radius:10px; border:1.5px solid var(--line); background:var(--bg); transition:background .15s, border-color .15s;}
+  .team-check:has(input:checked){background:var(--accent-soft); border-color:var(--accent);}
   .team-check input[type="checkbox"]{width:17px; height:17px; accent-color:var(--accent); flex-shrink:0;}
 
   .rsvp-group{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
@@ -802,10 +809,10 @@ function openEventModal(eventId){
       <label>対象チーム（複数選択可）</label>
       <div class="team-check-list">${teamChecks}</div>
     </div>
-    <div class="field"><label>日付</label><input id="ev-date" type="date" value="${ev.date||''}" /></div>
+    <div class="field"><label>日付</label><div class="field-icon-wrap" data-icon="📅"><input id="ev-date" type="date" value="${ev.date||''}" /></div></div>
     <div class="event-datetime-grid">
-      <div class="field"><label>開始時刻</label><input id="ev-start" type="time" value="${ev.startTime||''}" /></div>
-      <div class="field"><label>終了時刻</label><input id="ev-end" type="time" value="${ev.endTime||''}" /></div>
+      <div class="field"><label>開始時刻</label><div class="field-icon-wrap" data-icon="🕐"><input id="ev-start" type="time" value="${ev.startTime||''}" /></div></div>
+      <div class="field"><label>終了時刻</label><div class="field-icon-wrap" data-icon="🕐"><input id="ev-end" type="time" value="${ev.endTime||''}" /></div></div>
     </div>
     <div class="field">
       <label>場所</label>
@@ -1019,7 +1026,7 @@ function openRecordModal(){
     <h3>記録を追加</h3>
     <div class="field"><label>種目</label><select id="rc-type">${typeOpts}</select></div>
     <div class="field"><label>記録</label><input id="rc-value" type="number" step="0.01" placeholder="例：18.4" /></div>
-    <div class="field"><label>日付</label><input id="rc-date" type="date" value="${fmtDate(new Date())}" /></div>
+    <div class="field"><label>日付</label><div class="field-icon-wrap" data-icon="📅"><input id="rc-date" type="date" value="${fmtDate(new Date())}" /></div></div>
     <div class="field"><label>メモ（任意）</label><input id="rc-note" placeholder="例：大会記録" /></div>
     <div class="modal-actions">
       <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
