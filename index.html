@@ -125,16 +125,21 @@
   .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:6px;}
   .cal-dow{text-align:center; font-size:11.5px; font-weight:700; color:var(--ink-faint); padding-bottom:4px;}
   .cal-cell{
-    position:relative; min-height:74px; border-radius:12px; background:var(--bg); border:1.5px solid transparent;
-    padding:6px; display:flex; flex-direction:column; gap:4px; text-align:left;
+    position:relative; min-height:92px; border-radius:12px; background:var(--bg); border:1.5px solid transparent;
+    padding:6px; display:flex; flex-direction:column; gap:3px; text-align:left; align-items:stretch;
   }
   .cal-cell.other-month{opacity:.35;}
   .cal-cell.today{border-color:var(--gold);}
   .cal-cell.selected{background:var(--accent-soft); border-color:var(--accent);}
   .cal-cell .d-num{font-size:12.5px; font-weight:700; color:var(--ink-soft);}
-  .cal-dots{display:flex; flex-wrap:wrap; gap:3px;}
-  .cal-dot{width:7px; height:7px; border-radius:50%;}
-  @media (max-width:640px){ .cal-cell{min-height:52px;} }
+  .cal-events{display:flex; flex-direction:column; gap:2px; width:100%; overflow:hidden;}
+  .cal-event-line{display:flex; align-items:center; gap:3px; font-size:10px; line-height:1.25; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left;}
+  .cal-event-dot{width:6px; height:6px; border-radius:50%; flex-shrink:0;}
+  .cal-event-time{font-weight:700; color:var(--ink); flex-shrink:0;}
+  .cal-event-loc{overflow:hidden; text-overflow:ellipsis;}
+  .cal-event-more{font-size:9.5px; color:var(--ink-faint); font-weight:700;}
+  @media (max-width:640px){ .cal-cell{min-height:78px; padding:4px;} .cal-event-line{font-size:8.5px; gap:2px;} .cal-event-dot{width:5px; height:5px;} }
+  @media (max-width:400px){ .cal-cell{min-height:70px;} .cal-event-line{font-size:8px;} .cal-event-loc{display:none;} }
 
   .team-chip{display:inline-flex; align-items:center; gap:6px; padding:3px 10px 3px 6px; border-radius:999px; font-size:11.5px; font-weight:700;}
   .team-dot{width:8px; height:8px; border-radius:50%;}
@@ -147,9 +152,12 @@
   .event-meta span{display:flex; align-items:center; gap:4px;}
   .map-pin-link{color:var(--accent); font-weight:700; text-decoration:none; font-size:12px;}
   .map-pin-link:hover{text-decoration:underline;}
-  .loc-chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
-  .loc-chip{background:var(--accent-soft); color:var(--accent); border:none; border-radius:999px; padding:6px 12px; font-size:12.5px; font-weight:700;}
-  .loc-chip:active{transform:scale(0.97);}
+  .loc-list{display:flex; flex-direction:column; gap:5px; margin-top:8px; max-height:230px; overflow-y:auto;}
+  .loc-list-item{display:flex; align-items:center; gap:6px; background:var(--bg); border:none; border-radius:10px; padding:10px 12px; text-align:left; width:100%; font-size:13.5px; font-weight:700; color:var(--ink);}
+  .loc-list-item:active{background:var(--accent-soft); color:var(--accent);}
+  .team-check-list{display:flex; flex-direction:column; gap:2px;}
+  .team-check{display:flex; align-items:center; gap:8px; padding:9px 4px; font-size:14px; font-weight:700; color:var(--ink); cursor:pointer;}
+  .team-check input[type="checkbox"]{width:17px; height:17px; accent-color:var(--accent); flex-shrink:0;}
 
   .rsvp-group{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
   .rsvp-btn{border:1.5px solid var(--line); background:var(--surface); border-radius:9px; padding:6px 11px; font-size:12.5px; font-weight:700; color:var(--ink-soft);}
@@ -393,6 +401,7 @@ function teamById(id){ return DB.teams.find(t=>t.id===id); }
 function teamColor(id){ const idx = DB.teams.findIndex(t=>t.id===id); return TEAM_COLORS[(idx<0?0:idx) % TEAM_COLORS.length]; }
 function recTypeById(id){ return DB.recordTypes.find(r=>r.id===id); }
 function mapsUrl(text){ return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(text)}`; }
+function eventTeamIds(e){ return e.teamIds || (e.teamId ? [e.teamId] : []); }
 function allChildren(){
   const out=[];
   Object.entries(DB.accounts).forEach(([accUid,acc])=>{
@@ -553,11 +562,18 @@ function renderCalendarView(){
   const grid = cells.map(c=>{
     const ds = fmtDate(c.dateObj);
     const evs = eventsOn(ds);
-    const dots = evs.slice(0,4).map(e=>`<span class="cal-dot" style="background:${teamColor(e.teamId)}"></span>`).join('');
+    const maxShow = 3;
+    const lines = evs.slice(0,maxShow).map(e=>{
+      const ids = eventTeamIds(e);
+      const color = teamColor(ids[0]);
+      const loc = e.location ? escapeHtml(e.location) : '';
+      return `<span class="cal-event-line"><span class="cal-event-dot" style="background:${color}"></span><span class="cal-event-time">${escapeHtml(e.startTime||'')}</span><span class="cal-event-loc">${loc}</span></span>`;
+    }).join('');
+    const more = evs.length>maxShow ? `<span class="cal-event-more">+${evs.length-maxShow}件</span>` : '';
     const cls = ['cal-cell']; if(c.other) cls.push('other-month'); if(ds===todayStr) cls.push('today'); if(ds===ui.selectedDate) cls.push('selected');
     return `<button type="button" class="${cls.join(' ')}" data-date="${ds}">
       <span class="d-num">${c.d}</span>
-      <span class="cal-dots">${dots}</span>
+      <span class="cal-events">${lines}${more}</span>
     </button>`;
   }).join('');
 
@@ -593,13 +609,14 @@ function renderCalendarView(){
 }
 
 function renderEventRow(e){
-  const team = teamById(e.teamId);
-  const color = teamColor(e.teamId);
+  const ids = eventTeamIds(e);
+  const teams = ids.map(id=>teamById(id)).filter(Boolean);
+  const color = teams[0] ? teamColor(teams[0].id) : '#9A9CBB';
   const att = DB.attendance[e.id] || {};
-  const eligibleChildren = allChildren().filter(c=>c.teamId===e.teamId);
+  const eligibleChildren = allChildren().filter(c=>ids.includes(c.teamId));
   const yes = eligibleChildren.filter(c=>att[c.id]==='yes');
   const no = eligibleChildren.filter(c=>att[c.id]==='no');
-  const myKids = myChildren().filter(c=>c.teamId===e.teamId);
+  const myKids = myChildren().filter(c=>ids.includes(c.teamId));
 
   const myControls = myKids.map(c=>{
     const st = att[c.id] || 'pending';
@@ -613,13 +630,18 @@ function renderEventRow(e){
     </div>`;
   }).join('');
 
+  const teamChips = teams.length ? teams.map(t=>{
+    const c = teamColor(t.id);
+    return `<span class="team-chip" style="background:${c}22; color:${c}"><span class="team-dot" style="background:${c}"></span>${escapeHtml(t.name)}</span>`;
+  }).join('') : `<span class="team-chip" style="background:#9A9CBB22; color:#9A9CBB"><span class="team-dot" style="background:#9A9CBB"></span>全体</span>`;
+
   return `
   <div class="event-row">
     <div class="event-time" style="color:${color}">${e.startTime||'--:--'}<br/><span style="opacity:.6; font-size:11px;">〜${e.endTime||''}</span></div>
     <div class="event-body">
       <p class="event-title">${escapeHtml(e.title)}</p>
       <div class="event-meta">
-        <span class="team-chip" style="background:${color}22; color:${color}"><span class="team-dot" style="background:${color}"></span>${escapeHtml(team?team.name:'全体')}</span>
+        ${teamChips}
         <span>📍 ${escapeHtml(e.location||'未定')}${e.location ? ` <a href="${mapsUrl(e.location)}" target="_blank" rel="noopener" class="map-pin-link" title="Googleマップで開く">🗺️地図</a>` : ''}</span>
       </div>
       ${e.note ? `<div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:6px;">${escapeHtml(e.note)}</div>` : ''}
@@ -656,13 +678,21 @@ function attachCalendarEvents(){
 }
 
 function openEventModal(eventId){
-  const ev = eventId ? DB.events.find(e=>e.id===eventId) : {id:null, title:'', teamId:DB.teams[0]?.id||'', date:ui.selectedDate, startTime:'', endTime:'', location:'', note:''};
-  const teamOpts = DB.teams.map(t=>`<option value="${t.id}" ${ev.teamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
-  const locChips = DB.locations.map(l=>`<button type="button" class="loc-chip" data-loc-pick="${escapeHtml(l.name)}">📍 ${escapeHtml(l.name)}</button>`).join('');
+  const ev = eventId ? DB.events.find(e=>e.id===eventId) : {id:null, title:'', teamIds:DB.teams[0]?[DB.teams[0].id]:[], date:ui.selectedDate, startTime:'', endTime:'', location:'', note:''};
+  const selectedTeamIds = eventTeamIds(ev);
+  const teamChecks = DB.teams.map(t=>`
+    <label class="team-check">
+      <input type="checkbox" value="${t.id}" data-team-check ${selectedTeamIds.includes(t.id)?'checked':''} />
+      <span class="team-dot" style="background:${teamColor(t.id)}"></span>${escapeHtml(t.name)}
+    </label>`).join('');
+  const locList = DB.locations.map(l=>`<button type="button" class="loc-list-item" data-loc-pick="${escapeHtml(l.name)}">📍 ${escapeHtml(l.name)}</button>`).join('');
   showModal(`
     <h3>${eventId?'イベントを編集':'新しいイベント'}</h3>
     <div class="field"><label>タイトル</label><input id="ev-title" value="${escapeHtml(ev.title)}" placeholder="例：通常練習" /></div>
-    <div class="field"><label>対象チーム</label><select id="ev-team">${teamOpts}</select></div>
+    <div class="field">
+      <label>対象チーム（複数選択可）</label>
+      <div class="team-check-list">${teamChecks}</div>
+    </div>
     <div class="field"><label>日付</label><input id="ev-date" type="date" value="${ev.date||''}" /></div>
     <div class="event-datetime-grid">
       <div class="field"><label>開始時刻</label><input id="ev-start" type="time" value="${ev.startTime||''}" /></div>
@@ -671,7 +701,7 @@ function openEventModal(eventId){
     <div class="field">
       <label>場所</label>
       <input id="ev-loc" value="${escapeHtml(ev.location)}" placeholder="例：〇〇小学校 体育館" />
-      ${locChips ? `<div class="loc-chips">${locChips}</div><div class="field-hint">タップすると入力欄に入ります（管理者メニューで編集できます）</div>` : ''}
+      ${locList ? `<div class="loc-list">${locList}</div><div class="field-hint">タップすると入力欄に入ります（管理者メニューで編集できます）</div>` : ''}
     </div>
     <div class="field"><label>メモ（任意）</label><textarea id="ev-note" rows="2">${escapeHtml(ev.note||'')}</textarea></div>
     <div class="modal-actions">
@@ -685,9 +715,11 @@ function openEventModal(eventId){
   document.getElementById('ev-save').addEventListener('click', async ()=>{
     const title = document.getElementById('ev-title').value.trim();
     const date = document.getElementById('ev-date').value;
+    const teamIds = [...document.querySelectorAll('[data-team-check]:checked')].map(cb=>cb.value);
     if(!title || !date){ toast('タイトルと日付は必須です'); return; }
+    if(!teamIds.length){ toast('対象チームを1つ以上選んでください'); return; }
     const data = {
-      id: ev.id || uid('e'), title, teamId: document.getElementById('ev-team').value, date,
+      id: ev.id || uid('e'), title, teamIds, date,
       startTime: document.getElementById('ev-start').value, endTime: document.getElementById('ev-end').value,
       location: document.getElementById('ev-loc').value.trim(), note: document.getElementById('ev-note').value.trim(),
     };
@@ -910,7 +942,7 @@ function renderAdminView(){
       <button class="btn btn-sm btn-outline" data-toggle-role="${accUid}">${acc.role==='admin'?'一般に戻す':'管理者にする'}</button>
     </div>`).join('');
   const upcoming = DB.events.slice().sort((a,b)=>a.date.localeCompare(b.date)).filter(e=>e.date>=fmtDate(new Date())).slice(0,8);
-  const eventRows = upcoming.map(e=>`<div class="list-row"><span>${e.date} ${e.startTime||''} - ${escapeHtml(e.title)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(teamById(e.teamId)?.name||'')})</span></span><span><button class="btn btn-sm btn-outline" data-edit-event="${e.id}">編集</button></span></div>`).join('') || `<div style="color:var(--ink-faint); font-size:13px; padding:8px 0;">今後の予定はありません</div>`;
+  const eventRows = upcoming.map(e=>`<div class="list-row"><span>${e.date} ${e.startTime||''} - ${escapeHtml(e.title)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(eventTeamIds(e).map(id=>teamById(id)?.name).filter(Boolean).join('・')||'全体')})</span></span><span><button class="btn btn-sm btn-outline" data-edit-event="${e.id}">編集</button></span></div>`).join('') || `<div style="color:var(--ink-faint); font-size:13px; padding:8px 0;">今後の予定はありません</div>`;
 
   return `
     <div class="section-head"><h2>⚙️ 管理者メニュー</h2></div>
