@@ -342,22 +342,41 @@
   .config-warning{ background:var(--danger-soft); color:var(--danger); border-radius:14px; padding:16px 18px; font-size:13.5px; line-height:1.7; max-width:520px; margin:20px auto; }
   .config-warning code{background:rgba(255,255,255,.6); padding:1px 5px; border-radius:5px;}
 
-.board-datetime-grid{
+ .board-datetime-grid{
   display:grid;
   grid-template-columns:minmax(0,1fr) minmax(0,1fr);
   gap:12px;
-}
-.board-datetime-grid .field{min-width:0;}
-.board-datetime-grid input[type="datetime-local"]{
   width:100%;
   min-width:0;
-  max-width:100%;
   box-sizing:border-box;
+}
+.board-datetime-grid .field{
+  min-width:0;
+  width:100%;
+  box-sizing:border-box;
+}
+.board-datetime-grid input[type="datetime-local"]{
+  display:block;
+  width:100% !important;
+  min-width:0 !important;
+  max-width:100% !important;
+  box-sizing:border-box !important;
+  padding-left:10px;
+  padding-right:10px;
+  font-size:14px;
 }
 @media (max-width:560px){
   .board-datetime-grid{
     grid-template-columns:1fr;
     gap:0;
+  }
+  .board-datetime-grid .field{
+    width:100%;
+  }
+  .board-datetime-grid input[type="datetime-local"]{
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
   }
 }
 </style>
@@ -953,7 +972,19 @@ function formatBoardDateTime(value){
   if(Number.isNaN(d.getTime())) return value || '';
   return d.toLocaleString('ja-JP',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
 }
+function boardTargetTeamIds(post){
+  return post.teamIds || (post.teamId ? [post.teamId] : []);
+}
 function boardTargetLabel(post){
+  // 新形式：複数チーム
+  const ids = boardTargetTeamIds(post);
+  if(ids.length){
+    const teams = ids.map(id=>teamById(id)).filter(Boolean);
+    if(teams.length === DB.teams.length && DB.teams.length > 0) return '📣 全員宛';
+    if(teams.length) return `👥 ${teams.map(t=>t.name).join('・')} 宛`;
+    return '👥 特定グループ宛';
+  }
+  // 旧形式との互換
   if(post.audienceType==='team'){
     const team = teamById(post.teamId);
     return team ? `👥 ${team.name} 宛` : '👥 特定グループ宛';
@@ -969,7 +1000,14 @@ function visibleBoardPosts(){
       const end = Date.parse(p.endAt||'');
       const active = !Number.isNaN(start) && !Number.isNaN(end) && start <= now && now <= end;
       const mine = p.authorUid===session.uid;
-      const audienceMatch = p.audienceType!=='team' || isAdmin() || myTeamIds.has(p.teamId) || mine;
+
+      // 新形式：選択された複数チームのいずれかに所属していれば表示
+      const targetTeamIds = boardTargetTeamIds(p);
+      const audienceMatch = targetTeamIds.length
+        ? (isAdmin() || mine || targetTeamIds.some(id=>myTeamIds.has(id)))
+        // 旧形式：全員 or 単一チーム
+        : (p.audienceType!=='team' || isAdmin() || myTeamIds.has(p.teamId) || mine);
+
       return audienceMatch && (active || mine);
     })
     .sort((a,b)=>Date.parse(b.createdAt||0)-Date.parse(a.createdAt||0));
