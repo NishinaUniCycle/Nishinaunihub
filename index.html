@@ -240,20 +240,31 @@
   .record-chart-sub{font-size:12px; color:var(--ink-faint); margin-top:3px;}
   .record-chart-best{flex-shrink:0; padding:7px 10px; border-radius:12px; background:var(--accent-soft); color:var(--accent); font-size:12px; font-weight:900; text-align:right;}
   .record-chart-best small{display:block; color:var(--ink-soft); font-weight:700; font-size:10px; margin-bottom:1px;}
-  .chart-wrap{height:260px; margin-top:12px; position:relative;}
-  .record-chart-host{width:100%; height:100%;}
-  .record-chart-empty{height:100%; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px; border:1px dashed var(--line); border-radius:14px; color:var(--ink-faint); background:linear-gradient(180deg,rgba(47,95,224,.035),transparent); text-align:center;}
+  .chart-wrap{height:280px; margin-top:12px; position:relative; min-width:0;}
+  .record-chart-host{width:100%; height:100%; min-width:0;}
+  .record-chart-empty{height:100%; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px; border:1px dashed var(--line); border-radius:14px; color:var(--ink-faint); background:linear-gradient(180deg,rgba(47,95,224,.035),transparent); text-align:center; padding:18px;}
   .record-chart-empty strong{color:var(--ink-soft); font-size:13px;}
   .record-chart-empty span{font-size:11.5px;}
   .record-svg{display:block; width:100%; height:100%; overflow:visible;}
   .record-svg .grid{stroke:var(--line); stroke-width:1;}
-  .record-svg .axis-label{fill:var(--ink-faint); font-size:11px; font-family:'Noto Sans JP',sans-serif;}
-  .record-svg .x-label{fill:var(--ink-faint); font-size:10px; font-family:'Noto Sans JP',sans-serif;}
+  .record-svg .axis-label{fill:var(--ink-faint); font-size:12px; font-family:'Noto Sans JP',sans-serif;}
+  .record-svg .x-label{fill:var(--ink-faint); font-size:11px; font-family:'Noto Sans JP',sans-serif;}
   .record-svg .line{fill:none; stroke:var(--accent); stroke-width:3; stroke-linecap:round; stroke-linejoin:round;}
   .record-svg .area{fill:var(--accent); opacity:.10;}
   .record-svg .point{fill:#fff; stroke:var(--accent); stroke-width:3;}
-  .record-svg .point-label{fill:var(--ink); font-size:11px; font-weight:900; font-family:'Noto Sans JP',sans-serif;}
-  @media (max-width:560px){.record-chart-head{flex-direction:column;}.record-chart-best{text-align:left;}.chart-wrap{height:235px;}}
+  .record-svg .point-label{fill:var(--ink); font-size:12px; font-weight:900; font-family:'Noto Sans JP',sans-serif;}
+  @media (max-width:560px){
+    .record-chart-head{flex-direction:column; gap:8px;}
+    .record-chart-best{text-align:left;}
+    .chart-wrap{height:300px; margin-top:14px;}
+    .record-chart-title{font-size:16px;}
+    .record-chart-sub{font-size:12px; line-height:1.5;}
+    .record-chart-best{font-size:13px;}
+    .record-chart-best small{font-size:10.5px;}
+    .record-svg .axis-label{font-size:12px;}
+    .record-svg .x-label{font-size:11px;}
+    .record-svg .point-label{font-size:12px;}
+  }
 
   .list-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
   .list-row:last-child{border-bottom:none;}
@@ -1361,9 +1372,16 @@ function drawChart(){
   const best = betterLow ? Math.min(...values) : Math.max(...values);
   if(bestBox) bestBox.innerHTML = `<small>現在のベスト</small>${best}${escapeHtml(unit)}`;
 
-  const W = 900, H = 300;
-  const pad = {l:58, r:24, t:28, b:48};
-  const iw = W-pad.l-pad.r, ih = H-pad.t-pad.b;
+  // 固定900px基準をやめ、実際の表示幅でSVGを描画する。
+  const isMobile = window.matchMedia('(max-width:560px)').matches;
+  const W = Math.max(Math.round(host.getBoundingClientRect().width), 280);
+  const H = isMobile ? 300 : 300;
+  const pad = isMobile
+    ? {l:62, r:18, t:36, b:52}
+    : {l:68, r:28, t:34, b:52};
+  const iw = Math.max(1, W-pad.l-pad.r);
+  const ih = Math.max(1, H-pad.t-pad.b);
+
   const rawMin = Math.min(...values), rawMax = Math.max(...values);
   const spread = rawMax-rawMin || Math.max(Math.abs(rawMax)*0.12, 1);
   const minY = rawMin - spread*0.18;
@@ -1375,7 +1393,9 @@ function drawChart(){
     return rounded.replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1');
   };
   const esc = s => escapeHtml(String(s));
-  const ticks = 4;
+
+  // iPhoneでは目盛りを少し減らして文字を大きく、読みやすくする。
+  const ticks = isMobile ? 3 : 4;
   let grid = '', yLabels = '';
   for(let i=0;i<=ticks;i++){
     const v = maxY-(maxY-minY)*i/ticks;
@@ -1383,22 +1403,38 @@ function drawChart(){
     grid += `<line class="grid" x1="${pad.l}" y1="${yy}" x2="${W-pad.r}" y2="${yy}"/>`;
     yLabels += `<text class="axis-label" x="${pad.l-10}" y="${yy+4}" text-anchor="end">${esc(fmt(v))}${esc(unit)}</text>`;
   }
+
   const points = data.map((d,i)=>`${x(i)},${y(Number(d.value))}`);
   const line = points.join(' ');
   const area = `${pad.l},${H-pad.b} ${line} ${x(data.length-1)},${H-pad.b}`;
+
+  // ラベルは画面幅と件数に応じて間引き、最初と最後は必ず表示。
+  const maxXLabels = isMobile ? 5 : 9;
+  const labelEvery = Math.max(1, Math.ceil((data.length-1) / Math.max(1, maxXLabels-1)));
   const labels = data.map((d,i)=>{
+    const show = i===0 || i===data.length-1 || i%labelEvery===0;
+    if(!show) return '';
     const xx=x(i);
     const anchor = i===0 ? 'start' : i===data.length-1 ? 'end' : 'middle';
     return `<text class="x-label" x="${xx}" y="${H-16}" text-anchor="${anchor}">${esc(d.date.slice(5).replace('-','/'))}</text>`;
   }).join('');
+
+  // 値ラベルも混雑時は間引く。ベスト値と最初・最後は優先表示。
+  const maxPointLabels = isMobile ? 6 : 12;
+  const pointEvery = Math.max(1, Math.ceil((data.length-1) / Math.max(1, maxPointLabels-1)));
+  const bestIndex = values.findIndex(v=>v===best);
   const dots = data.map((d,i)=>{
     const xx=x(i), yy=y(Number(d.value));
-    return `<circle class="point" cx="${xx}" cy="${yy}" r="5"/><text class="point-label" x="${xx}" y="${yy-11}" text-anchor="middle">${esc(fmt(Number(d.value)))}${esc(unit)}</text>`;
+    const showLabel = i===0 || i===data.length-1 || i===bestIndex || i%pointEvery===0;
+    const labelY = yy < pad.t+20 ? yy+20 : yy-12;
+    const label = showLabel
+      ? `<text class="point-label" x="${xx}" y="${labelY}" text-anchor="middle">${esc(fmt(Number(d.value)))}${esc(unit)}</text>`
+      : '';
+    return `<circle class="point" cx="${xx}" cy="${yy}" r="${isMobile ? 5.5 : 5}"/>${label}`;
   }).join('');
 
-  host.innerHTML = `<svg class="record-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(rt?.name||'記録')}の推移グラフ">${grid}${yLabels}<polygon class="area" points="${area}"/><polyline class="line" points="${line}"/>${dots}${labels}</svg>`;
+  host.innerHTML = `<svg class="record-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(rt?.name||'記録')}の推移グラフ">${grid}${yLabels}<polygon class="area" points="${area}"/><polyline class="line" points="${line}"/>${dots}${labels}</svg>`;
 }
-
 function openRecordModal(){
   const typeOpts = DB.recordTypes.map(rt=>`<option value="${rt.id}">${escapeHtml(rt.name)} (${escapeHtml(rt.unit)})</option>`).join('');
   showModal(`
