@@ -219,7 +219,7 @@
     .board-datetime-grid{grid-template-columns:1fr;}
     .board-post-head{flex-direction:column; gap:5px;}
   }
-  .records-layout{display:grid; grid-template-columns:240px 1fr; gap:20px;}
+  .records-layout{display:grid; grid-template-columns:240px minmax(0,1fr); gap:20px; align-items:start;}
   @media (max-width:800px){ .records-layout{grid-template-columns:1fr;} }
   .child-list{display:flex; flex-direction:column; gap:4px;}
   .child-pick{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; background:var(--bg); border:none; text-align:left; width:100%; }
@@ -230,9 +230,30 @@
   table.rec-table td{padding:9px 10px; border-bottom:1px solid var(--line);}
   table.rec-table tr:last-child td{border-bottom:none;}
   .best-tag{background:var(--gold-soft); color:#8A6600; font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:999px; margin-left:6px;}
-  .type-toggle{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
-  .type-toggle button{border:1.5px solid var(--line); background:var(--surface); padding:6px 13px; border-radius:999px; font-size:12.5px; font-weight:700; color:var(--ink-soft);}
-  .type-toggle button.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+  .type-toggle{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;}
+  .type-toggle button{border:1.5px solid var(--line); background:var(--surface); padding:8px 15px; border-radius:999px; font-size:13px; font-weight:700; color:var(--ink-soft); transition:.15s ease;}
+  .type-toggle button:hover{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
+  .type-toggle button.active{background:var(--ink); color:#fff; border-color:var(--ink); box-shadow:0 4px 12px rgba(32,34,63,.12);}
+  .record-chart-card{overflow:hidden;}
+  .record-chart-head{display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:6px;}
+  .record-chart-title{font-size:15px; font-weight:900; margin:0;}
+  .record-chart-sub{font-size:12px; color:var(--ink-faint); margin-top:3px;}
+  .record-chart-best{flex-shrink:0; padding:7px 10px; border-radius:12px; background:var(--accent-soft); color:var(--accent); font-size:12px; font-weight:900; text-align:right;}
+  .record-chart-best small{display:block; color:var(--ink-soft); font-weight:700; font-size:10px; margin-bottom:1px;}
+  .chart-wrap{height:260px; margin-top:12px; position:relative;}
+  .record-chart-host{width:100%; height:100%;}
+  .record-chart-empty{height:100%; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px; border:1px dashed var(--line); border-radius:14px; color:var(--ink-faint); background:linear-gradient(180deg,rgba(47,95,224,.035),transparent); text-align:center;}
+  .record-chart-empty strong{color:var(--ink-soft); font-size:13px;}
+  .record-chart-empty span{font-size:11.5px;}
+  .record-svg{display:block; width:100%; height:100%; overflow:visible;}
+  .record-svg .grid{stroke:var(--line); stroke-width:1;}
+  .record-svg .axis-label{fill:var(--ink-faint); font-size:11px; font-family:'Noto Sans JP',sans-serif;}
+  .record-svg .x-label{fill:var(--ink-faint); font-size:10px; font-family:'Noto Sans JP',sans-serif;}
+  .record-svg .line{fill:none; stroke:var(--accent); stroke-width:3; stroke-linecap:round; stroke-linejoin:round;}
+  .record-svg .area{fill:var(--accent); opacity:.10;}
+  .record-svg .point{fill:#fff; stroke:var(--accent); stroke-width:3;}
+  .record-svg .point-label{fill:var(--ink); font-size:11px; font-weight:900; font-family:'Noto Sans JP',sans-serif;}
+  @media (max-width:560px){.record-chart-head{flex-direction:column;}.record-chart-best{text-align:left;}.chart-wrap{height:235px;}}
 
   .list-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
   .list-row:last-child{border-bottom:none;}
@@ -336,7 +357,6 @@
   .toast.show{opacity:1; transform:translateX(-50%) translateY(-6px);}
   .badge-role{font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; background:var(--gold-soft); color:#8A6600;}
   .msg-err{color:var(--danger); font-size:13px; margin-top:4px; min-height:16px;}
-  .chart-wrap{height:220px; margin-top:10px;}
   .footnote{font-size:11.5px; color:var(--ink-faint); line-height:1.6; margin-top:26px; padding-top:16px; border-top:1px dashed var(--line);}
   .loading-screen{flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; color:var(--ink-soft);}
   .config-warning{ background:var(--danger-soft); color:var(--danger); border-radius:14px; padding:16px 18px; font-size:13.5px; line-height:1.7; max-width:520px; margin:20px auto; }
@@ -1268,9 +1288,16 @@ function renderRecordsView(){
         <h2 style="font-size:17px;">${escapeHtml(selected.name)}さんの記録</h2>
         ${canEdit ? `<button class="btn btn-primary btn-sm" id="btn-add-record">＋ 記録を追加</button>` : ''}
       </div>
-      <div class="card pad" style="margin-bottom:18px;">
+      <div class="card pad record-chart-card" style="margin-bottom:18px;">
         <div class="type-toggle">${typeToggles}</div>
-        <div class="chart-wrap"><canvas id="record-chart"></canvas></div>
+        <div class="record-chart-head">
+          <div>
+            <h3 class="record-chart-title" id="record-chart-title">記録の推移</h3>
+            <div class="record-chart-sub" id="record-chart-sub">日付ごとの記録を表示します</div>
+          </div>
+          <div class="record-chart-best" id="record-chart-best"></div>
+        </div>
+        <div class="chart-wrap"><div id="record-chart" class="record-chart-host"></div></div>
       </div>
       <div class="card pad">
         <table class="rec-table">
@@ -1305,17 +1332,71 @@ function attachRecordsEvents(){
 }
 
 function drawChart(){
-  const canvas = document.getElementById('record-chart');
-  if(!canvas || typeof Chart==='undefined') return;
-  const childId = ui.recordChildId; const typeId = ui.recordTypeFilter;
+  const host = document.getElementById('record-chart');
+  const title = document.getElementById('record-chart-title');
+  const sub = document.getElementById('record-chart-sub');
+  const bestBox = document.getElementById('record-chart-best');
+  if(!host) return;
+
+  const childId = ui.recordChildId;
+  const typeId = ui.recordTypeFilter;
   const rt = recTypeById(typeId);
-  const data = (DB.records[childId]||[]).filter(r=>r.typeId===typeId).slice().sort((a,b)=>a.date.localeCompare(b.date));
-  if(window._recChart) window._recChart.destroy();
-  window._recChart = new Chart(canvas, {
-    type:'line',
-    data:{ labels:data.map(d=>d.date), datasets:[{ label: rt?`${rt.name} (${rt.unit})`:'', data:data.map(d=>d.value), borderColor:'#2F5FE0', backgroundColor:'rgba(47,95,224,0.12)', tension:.3, fill:true, pointBackgroundColor:'#F2B400', pointRadius:5 }] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:false } } }
-  });
+  const data = (DB.records[childId]||[])
+    .filter(r=>r.typeId===typeId && Number.isFinite(Number(r.value)) && r.date)
+    .slice()
+    .sort((a,b)=>a.date.localeCompare(b.date));
+
+  const unit = rt?.unit || '';
+  if(title) title.textContent = rt ? `${rt.name}の記録推移` : '記録の推移';
+  if(sub) sub.textContent = data.length ? `${data.length}件の記録を日付順に表示` : '記録を追加するとここに推移グラフが表示されます';
+
+  if(!data.length){
+    if(bestBox) bestBox.innerHTML = '<small>現在のベスト</small>—';
+    host.innerHTML = `<div class="record-chart-empty"><strong>まだこの種目の記録がありません</strong><span>「＋ 記録を追加」から記録すると自動でグラフに反映されます</span></div>`;
+    return;
+  }
+
+  const values = data.map(d=>Number(d.value));
+  const betterLow = rt?.better === 'low';
+  const best = betterLow ? Math.min(...values) : Math.max(...values);
+  if(bestBox) bestBox.innerHTML = `<small>現在のベスト</small>${best}${escapeHtml(unit)}`;
+
+  const W = 900, H = 300;
+  const pad = {l:58, r:24, t:28, b:48};
+  const iw = W-pad.l-pad.r, ih = H-pad.t-pad.b;
+  const rawMin = Math.min(...values), rawMax = Math.max(...values);
+  const spread = rawMax-rawMin || Math.max(Math.abs(rawMax)*0.12, 1);
+  const minY = rawMin - spread*0.18;
+  const maxY = rawMax + spread*0.18;
+  const y = v => pad.t + (maxY-v)/(maxY-minY)*ih;
+  const x = i => data.length===1 ? pad.l+iw/2 : pad.l+i/(data.length-1)*iw;
+  const fmt = v => {
+    const rounded = Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
+    return rounded.replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1');
+  };
+  const esc = s => escapeHtml(String(s));
+  const ticks = 4;
+  let grid = '', yLabels = '';
+  for(let i=0;i<=ticks;i++){
+    const v = maxY-(maxY-minY)*i/ticks;
+    const yy = y(v);
+    grid += `<line class="grid" x1="${pad.l}" y1="${yy}" x2="${W-pad.r}" y2="${yy}"/>`;
+    yLabels += `<text class="axis-label" x="${pad.l-10}" y="${yy+4}" text-anchor="end">${esc(fmt(v))}${esc(unit)}</text>`;
+  }
+  const points = data.map((d,i)=>`${x(i)},${y(Number(d.value))}`);
+  const line = points.join(' ');
+  const area = `${pad.l},${H-pad.b} ${line} ${x(data.length-1)},${H-pad.b}`;
+  const labels = data.map((d,i)=>{
+    const xx=x(i);
+    const anchor = i===0 ? 'start' : i===data.length-1 ? 'end' : 'middle';
+    return `<text class="x-label" x="${xx}" y="${H-16}" text-anchor="${anchor}">${esc(d.date.slice(5).replace('-','/'))}</text>`;
+  }).join('');
+  const dots = data.map((d,i)=>{
+    const xx=x(i), yy=y(Number(d.value));
+    return `<circle class="point" cx="${xx}" cy="${yy}" r="5"/><text class="point-label" x="${xx}" y="${yy-11}" text-anchor="middle">${esc(fmt(Number(d.value)))}${esc(unit)}</text>`;
+  }).join('');
+
+  host.innerHTML = `<svg class="record-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(rt?.name||'記録')}の推移グラフ">${grid}${yLabels}<polygon class="area" points="${area}"/><polyline class="line" points="${line}"/>${dots}${labels}</svg>`;
 }
 
 function openRecordModal(){
