@@ -341,6 +341,25 @@
   .loading-screen{flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; color:var(--ink-soft);}
   .config-warning{ background:var(--danger-soft); color:var(--danger); border-radius:14px; padding:16px 18px; font-size:13.5px; line-height:1.7; max-width:520px; margin:20px auto; }
   .config-warning code{background:rgba(255,255,255,.6); padding:1px 5px; border-radius:5px;}
+
+.board-datetime-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:12px;
+}
+.board-datetime-grid .field{min-width:0;}
+.board-datetime-grid input[type="datetime-local"]{
+  width:100%;
+  min-width:0;
+  max-width:100%;
+  box-sizing:border-box;
+}
+@media (max-width:560px){
+  .board-datetime-grid{
+    grid-template-columns:1fr;
+    gap:0;
+  }
+}
 </style>
 </head>
 <body>
@@ -1017,19 +1036,18 @@ function openBoardModal(postId){
   const defaultStart = existing?.startAt || localDateTimeValue(now);
   const defaultEnd = existing?.endAt || localDateTimeValue(new Date(now.getTime()+7*24*60*60*1000));
   const audienceType = existing?.audienceType || 'all';
-  const teamOpts = DB.teams.map(t=>`<option value="${t.id}" ${existing?.teamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
+  const selectedTeamIds = existing?.teamIds || (existing?.teamId ? [existing.teamId] : []);
+  const teamChecks = DB.teams.map(t=>`
+      <label class="team-check">
+        <input type="checkbox" value="${t.id}" data-board-team-check ${selectedTeamIds.includes(t.id)?'checked':''} />
+        <span class="team-dot" style="background:${teamColor(t.id)}"></span>${escapeHtml(t.name)}
+      </label>`).join('');
   showModal(`
     <h3>${existing?'掲示板の投稿を編集':'掲示板に投稿'}</h3>
     <div class="field">
-      <label>宛先</label>
-      <select id="board-audience">
-        <option value="all" ${audienceType==='all'?'selected':''}>全員</option>
-        <option value="team" ${audienceType==='team'?'selected':''}>特定のグループ</option>
-      </select>
-    </div>
-    <div class="field ${audienceType==='team'?'':'hidden'}" id="board-team-field">
-      <label>グループ</label>
-      <select id="board-team">${teamOpts}</select>
+      <label>宛先（複数選択可）</label>
+      <div class="team-check-list">${teamChecks}</div>
+      <div class="field-hint">全員に知らせる場合はすべてのチームを選択してください。</div>
     </div>
     <div class="field">
       <label>メッセージ</label>
@@ -1045,27 +1063,21 @@ function openBoardModal(postId){
       <button class="btn btn-primary" id="board-save">${existing?'更新する':'投稿する'}</button>
     </div>
   `);
-  const audience = document.getElementById('board-audience');
-  const teamField = document.getElementById('board-team-field');
-  audience.addEventListener('change', ()=>{
-    teamField.classList.toggle('hidden', audience.value!=='team');
-  });
   document.getElementById('board-save').addEventListener('click', async ()=>{
-    const type = audience.value;
     const body = document.getElementById('board-body').value.trim();
     const startAt = document.getElementById('board-start').value;
     const endAt = document.getElementById('board-end').value;
-    const teamId = type==='team' ? document.getElementById('board-team').value : '';
+    const teamIds = [...document.querySelectorAll('[data-board-team-check]:checked')].map(cb=>cb.value);
     if(!body){ toast('メッセージを入力してください'); return; }
+    if(!teamIds.length){ toast('宛先のチームを1つ以上選んでください'); return; }
     if(!startAt || !endAt){ toast('掲載開始と掲載終了を入力してください'); return; }
     if(Date.parse(startAt)>=Date.parse(endAt)){ toast('掲載終了は開始より後にしてください'); return; }
-    if(type==='team' && !teamId){ toast('宛先のグループを選んでください'); return; }
     const timestamp = new Date().toISOString();
     const data = {
       id: existing?.id || uid('b'),
       authorUid: existing?.authorUid || session.uid,
       authorName: existing?.authorName || currentAccount()?.name || session.name || 'ユーザー',
-      body, audienceType:type, teamId,
+      body, teamIds,
       startAt, endAt,
       createdAt: existing?.createdAt || timestamp,
       updatedAt: timestamp
