@@ -357,13 +357,21 @@
 }
 .board-datetime-grid input[type="datetime-local"]{
   display:block;
+  -webkit-appearance:none;
+  appearance:none;
   width:100% !important;
+  inline-size:100% !important;
   min-width:0 !important;
   max-width:100% !important;
   box-sizing:border-box !important;
-  padding-left:10px;
-  padding-right:10px;
-  font-size:14px;
+  margin:0 !important;
+  padding:12px 14px !important;
+  min-height:48px;
+  height:48px;
+  font:inherit;
+  font-size:16px;
+  line-height:1.35;
+  overflow:hidden;
 }
 @media (max-width:560px){
   .board-datetime-grid{
@@ -372,9 +380,12 @@
   }
   .board-datetime-grid .field{
     width:100%;
+    min-width:0;
+    max-width:100%;
   }
   .board-datetime-grid input[type="datetime-local"]{
     width:100% !important;
+    inline-size:100% !important;
     min-width:0 !important;
     max-width:100% !important;
   }
