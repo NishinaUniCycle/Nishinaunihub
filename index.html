@@ -897,7 +897,6 @@ function renderAttendanceModalBody(eventId){
     <div class="list-row attendance-row">
       <div class="attendance-row-main">
         <div class="attendance-row-name">${escapeHtml(c.name)}</div>
-        <div class="attendance-row-family">${escapeHtml(c.parentName||'')}家</div>
       </div>
       ${isAdmin() ? `
       <span class="rsvp-group">
