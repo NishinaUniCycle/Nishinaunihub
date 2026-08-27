@@ -202,6 +202,23 @@
   .empty-state{text-align:center; padding:40px 20px; color:var(--ink-faint);}
   .empty-state .wheel-mark{margin-bottom:10px;}
 
+  .board-list{display:flex; flex-direction:column; gap:12px;}
+  .board-post{background:var(--bg); border-radius:14px; padding:16px; border:1px solid transparent;}
+  .board-post:hover{border-color:var(--line);}
+  .board-post-head{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:9px;}
+  .board-post-author{font-weight:900; font-size:14px;}
+  .board-post-meta{font-size:11.5px; color:var(--ink-faint); margin-top:2px; line-height:1.5;}
+  .board-post-body{font-size:14px; line-height:1.75; white-space:pre-wrap; word-break:break-word;}
+  .board-post-target{display:inline-flex; align-items:center; gap:5px; margin-top:10px; padding:4px 9px; border-radius:999px; background:var(--accent-soft); color:var(--accent); font-size:11.5px; font-weight:700;}
+  .board-post-period{font-size:11px; color:var(--ink-faint); margin-top:7px;}
+  .board-post-actions{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;}
+  .board-empty{padding:42px 20px;}
+  .board-compose-note{font-size:11.5px; color:var(--ink-faint); margin-top:6px; line-height:1.5;}
+  .board-datetime-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px;}
+  @media (max-width:640px){
+    .board-datetime-grid{grid-template-columns:1fr;}
+    .board-post-head{flex-direction:column; gap:5px;}
+  }
   .records-layout{display:grid; grid-template-columns:240px 1fr; gap:20px;}
   @media (max-width:800px){ .records-layout{grid-template-columns:1fr;} }
   .child-list{display:flex; flex-direction:column; gap:4px;}
@@ -371,10 +388,10 @@ if(!CONFIG_NOT_SET){
 }
 
 const APP_KEYS = ['teams','recordTypes','events','settings','locations']; // collection: app
-const SHARED_KEYS = ['attendance','records']; // collection: shared
+const SHARED_KEYS = ['attendance','records','announcements']; // collection: shared
 const TEAM_COLORS = ['#2F5FE0','#F2B400','#E2574C','#1E9E77','#8E5FE0','#2FA9C7','#E07B39'];
 
-let DB = { teams:[], recordTypes:[], accounts:{}, events:[], attendance:{}, records:{}, settings:{adminCode:'nishinaunihub'}, locations:[] };
+let DB = { teams:[], recordTypes:[], accounts:{}, events:[], attendance:{}, records:{}, announcements:[], settings:{adminCode:'nishinaunihub'}, locations:[] };
 let session = null; // {uid, email, name, photoURL}
 let needsSetup = false; // 初回ログイン時、アカウント未作成なら true
 let ui = { view:'calendar', calYear:null, calMonth:null, selectedDate:null, regChildren:[], recordChildId:null, recordTypeFilter:null, setupError:null, adminSub:null, rosterQuery:'' };
@@ -418,9 +435,10 @@ function toast(msg){
 
 /* ---------------- bootstrap ---------------- */
 async function loadSharedData(){
-  const [teams, recordTypes, events, attendance, records, settings, locations] = await Promise.all([
+  const [teams, recordTypes, events, attendance, records, announcements, settings, locations] = await Promise.all([
     loadKey('teams', null), loadKey('recordTypes', null), loadKey('events', null),
-    loadKey('attendance', null), loadKey('records', null), loadKey('settings', null), loadKey('locations', null),
+    loadKey('attendance', null), loadKey('records', null), loadKey('announcements', null),
+    loadKey('settings', null), loadKey('locations', null),
   ]);
   DB.teams = teams || [
     {id:'t1', name:'ちびっこクラス'}, {id:'t2', name:'ジュニアクラス'}, {id:'t3', name:'アドバンスクラス'},
@@ -436,6 +454,7 @@ async function loadSharedData(){
   DB.events = events || [];
   DB.attendance = attendance || {};
   DB.records = records || {};
+  DB.announcements = announcements || [];
   DB.settings = settings || {adminCode:'nishinaunihub'};
   if(!settings) await saveKey('settings', DB.settings);
   DB.locations = locations || [];
@@ -602,7 +621,7 @@ function attachSetupEvents(){
 /* ================= APP SHELL ================= */
 function renderShell(){
   const acc = currentAccount();
-  const tabs = [ {id:'calendar', label:'カレンダー', icon:'📅'}, {id:'records', label:'記録', icon:'📈'}, {id:'children', label:'ユーザー', icon:'👤'} ];
+  const tabs = [ {id:'calendar', label:'カレンダー', icon:'📅'}, {id:'board', label:'掲示板', icon:'💬'}, {id:'records', label:'記録', icon:'📈'}, {id:'children', label:'ユーザー', icon:'👤'} ];
   if(isAdmin()) tabs.push({id:'admin', label:'管理', icon:'⚙️'});
   const avatarInner = session.photoURL ? `<img src="${session.photoURL}" alt="" />` : escapeHtml((acc.name||'?').slice(0,1));
   return `
@@ -617,13 +636,14 @@ function renderShell(){
   <div class="nav-tabs">
     ${tabs.map(t=>`<button class="nav-tab ${ui.view===t.id?'active':''}" data-view="${t.id}">${t.icon} ${t.label}</button>`).join('')}
   </div>
-  <main id="main-area">${ ui.view==='calendar' ? renderCalendarView() : ui.view==='records' ? renderRecordsView() : ui.view==='children' ? renderChildrenView() : (ui.view==='admin' && isAdmin()) ? renderAdminView() : renderCalendarView() }</main>
+  <main id="main-area">${ ui.view==='calendar' ? renderCalendarView() : ui.view==='board' ? renderBoardView() : ui.view==='records' ? renderRecordsView() : ui.view==='children' ? renderChildrenView() : (ui.view==='admin' && isAdmin()) ? renderAdminView() : renderCalendarView() }</main>
   `;
 }
 function attachShellEvents(){
   document.getElementById('btn-logout').addEventListener('click', async ()=>{ await signOut(auth); });
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click', ()=>{ ui.view=b.dataset.view; render(); }));
-  if(ui.view==='records') attachRecordsEvents();
+  if(ui.view==='board') attachBoardEvents();
+  else if(ui.view==='records') attachRecordsEvents();
   else if(ui.view==='children') attachChildrenEvents();
   else if(ui.view==='admin' && isAdmin()) attachAdminEvents();
   else attachCalendarEvents();
@@ -899,6 +919,166 @@ function openEventModal(eventId){
     if(ev.id){ DB.events = DB.events.map(e=>e.id===ev.id?data:e); } else { DB.events.push(data); }
     await saveKey('events', DB.events);
     closeModal(); ui.selectedDate = date; toast('保存しました'); render();
+  });
+}
+
+/* ================= BOARD ================= */
+function localDateTimeValue(date){
+  const d = date instanceof Date ? date : new Date(date);
+  if(Number.isNaN(d.getTime())) return '';
+  const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function formatBoardDateTime(value){
+  const d = new Date(value);
+  if(Number.isNaN(d.getTime())) return value || '';
+  return d.toLocaleString('ja-JP',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function boardTargetLabel(post){
+  if(post.audienceType==='team'){
+    const team = teamById(post.teamId);
+    return team ? `👥 ${team.name} 宛` : '👥 特定グループ宛';
+  }
+  return '📣 全員宛';
+}
+function visibleBoardPosts(){
+  const now = Date.now();
+  const myTeamIds = new Set(myChildren().map(c=>c.teamId));
+  return (DB.announcements||[])
+    .filter(p=>{
+      const start = Date.parse(p.startAt||'');
+      const end = Date.parse(p.endAt||'');
+      const active = !Number.isNaN(start) && !Number.isNaN(end) && start <= now && now <= end;
+      const mine = p.authorUid===session.uid;
+      const audienceMatch = p.audienceType!=='team' || isAdmin() || myTeamIds.has(p.teamId) || mine;
+      return audienceMatch && (active || mine);
+    })
+    .sort((a,b)=>Date.parse(b.createdAt||0)-Date.parse(a.createdAt||0));
+}
+function renderBoardView(){
+  const posts = visibleBoardPosts();
+  const rows = posts.map(p=>{
+    const mine = p.authorUid===session.uid;
+    const canManage = mine || isAdmin();
+    const now = Date.now();
+    const startMs = Date.parse(p.startAt||'');
+    const endMs = Date.parse(p.endAt||'');
+    const status = now < startMs ? '掲載待ち' : now > endMs ? '掲載終了' : '掲載中';
+    return `<article class="board-post">
+      <div class="board-post-head">
+        <div>
+          <div class="board-post-author">${escapeHtml(p.authorName||'ユーザー')}</div>
+          <div class="board-post-meta">投稿：${escapeHtml(formatBoardDateTime(p.createdAt))}</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+          <span class="board-post-target">${escapeHtml(boardTargetLabel(p))}</span>
+          ${canManage ? `<span class="badge-role">${escapeHtml(status)}</span>` : ''}
+        </div>
+      </div>
+      <div class="board-post-body">${escapeHtml(p.body)}</div>
+      <div class="board-post-period">掲載期間：${escapeHtml(formatBoardDateTime(p.startAt))} ～ ${escapeHtml(formatBoardDateTime(p.endAt))}</div>
+      ${canManage ? `<div class="board-post-actions">
+        <button class="btn btn-outline btn-sm" data-edit-board="${p.id}">編集</button>
+        <button class="btn btn-danger btn-sm" data-del-board="${p.id}">削除</button>
+      </div>` : ''}
+    </article>`;
+  }).join('');
+  return `
+    <div class="section-head">
+      <h2>💬 掲示板</h2>
+      <button class="btn btn-primary btn-sm" id="btn-new-board">＋ 投稿する</button>
+    </div>
+    <div class="card pad">
+      <div class="board-compose-note">全員または特定のグループ宛に投稿できます。掲載開始・終了日時を過ぎると掲示板には表示されません。</div>
+      <div class="board-list" style="margin-top:14px;">
+        ${rows || `<div class="empty-state board-empty">${wheelSVG(34,false)}<div>現在表示できる投稿はありません</div><div style="font-size:12px; margin-top:5px;">「投稿する」からお知らせを残せます。</div></div>`}
+      </div>
+    </div>
+  `;
+}
+function attachBoardEvents(){
+  const add = document.getElementById('btn-new-board');
+  if(add) add.addEventListener('click', ()=>openBoardModal(null));
+  document.querySelectorAll('[data-edit-board]').forEach(b=>b.addEventListener('click', ()=>openBoardModal(b.dataset.editBoard)));
+  document.querySelectorAll('[data-del-board]').forEach(b=>b.addEventListener('click', async ()=>{
+    const id=b.dataset.delBoard;
+    const post=(DB.announcements||[]).find(p=>p.id===id);
+    if(!post || (!isAdmin() && post.authorUid!==session.uid)) return;
+    if(!confirm('この投稿を削除しますか？')) return;
+    DB.announcements = DB.announcements.filter(p=>p.id!==id);
+    await saveKey('announcements', DB.announcements);
+    toast('投稿を削除しました'); render();
+  }));
+}
+function openBoardModal(postId){
+  const existing = postId ? (DB.announcements||[]).find(p=>p.id===postId) : null;
+  if(existing && (!isAdmin() && existing.authorUid!==session.uid)) return;
+  const now = new Date();
+  const defaultStart = existing?.startAt || localDateTimeValue(now);
+  const defaultEnd = existing?.endAt || localDateTimeValue(new Date(now.getTime()+7*24*60*60*1000));
+  const audienceType = existing?.audienceType || 'all';
+  const teamOpts = DB.teams.map(t=>`<option value="${t.id}" ${existing?.teamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
+  showModal(`
+    <h3>${existing?'掲示板の投稿を編集':'掲示板に投稿'}</h3>
+    <div class="field">
+      <label>宛先</label>
+      <select id="board-audience">
+        <option value="all" ${audienceType==='all'?'selected':''}>全員</option>
+        <option value="team" ${audienceType==='team'?'selected':''}>特定のグループ</option>
+      </select>
+    </div>
+    <div class="field ${audienceType==='team'?'':'hidden'}" id="board-team-field">
+      <label>グループ</label>
+      <select id="board-team">${teamOpts}</select>
+    </div>
+    <div class="field">
+      <label>メッセージ</label>
+      <textarea id="board-body" rows="5" placeholder="みなさんへの連絡を書いてください">${escapeHtml(existing?.body||'')}</textarea>
+    </div>
+    <div class="board-datetime-grid">
+      <div class="field"><label>掲載開始</label><input id="board-start" type="datetime-local" value="${escapeHtml(defaultStart)}" /></div>
+      <div class="field"><label>掲載終了</label><input id="board-end" type="datetime-local" value="${escapeHtml(defaultEnd)}" /></div>
+    </div>
+    <div class="field-hint">開始日時になると表示され、終了日時を過ぎると掲示板から非表示になります。</div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="board-save">${existing?'更新する':'投稿する'}</button>
+    </div>
+  `);
+  const audience = document.getElementById('board-audience');
+  const teamField = document.getElementById('board-team-field');
+  audience.addEventListener('change', ()=>{
+    teamField.classList.toggle('hidden', audience.value!=='team');
+  });
+  document.getElementById('board-save').addEventListener('click', async ()=>{
+    const type = audience.value;
+    const body = document.getElementById('board-body').value.trim();
+    const startAt = document.getElementById('board-start').value;
+    const endAt = document.getElementById('board-end').value;
+    const teamId = type==='team' ? document.getElementById('board-team').value : '';
+    if(!body){ toast('メッセージを入力してください'); return; }
+    if(!startAt || !endAt){ toast('掲載開始と掲載終了を入力してください'); return; }
+    if(Date.parse(startAt)>=Date.parse(endAt)){ toast('掲載終了は開始より後にしてください'); return; }
+    if(type==='team' && !teamId){ toast('宛先のグループを選んでください'); return; }
+    const timestamp = new Date().toISOString();
+    const data = {
+      id: existing?.id || uid('b'),
+      authorUid: existing?.authorUid || session.uid,
+      authorName: existing?.authorName || currentAccount()?.name || session.name || 'ユーザー',
+      body, audienceType:type, teamId,
+      startAt, endAt,
+      createdAt: existing?.createdAt || timestamp,
+      updatedAt: timestamp
+    };
+    if(existing){
+      DB.announcements = DB.announcements.map(p=>p.id===existing.id?data:p);
+    }else{
+      DB.announcements.push(data);
+    }
+    await saveKey('announcements', DB.announcements);
+    closeModal();
+    toast(existing?'投稿を更新しました':'投稿しました');
+    render();
   });
 }
 
