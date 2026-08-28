@@ -439,7 +439,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, collection, getDocs
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ---------------------------------------------------------
    ▼▼▼ ここを自分のFirebaseプロジェクトの値に書き換えてください ▼▼▼
@@ -1559,7 +1559,10 @@ function renderAdminSection(sectionId){
           <div class="roster-row-sub">${escapeHtml(acc.email||'')}</div>
           <div class="roster-row-sub">${(acc.children||[]).map(c=>escapeHtml(c.name)).join('、') || '（ユーザー未登録）'}</div>
         </div>
-        <button class="btn btn-sm btn-outline" data-toggle-role="${accUid}">${acc.role==='admin'?'一般に戻す':'管理者にする'}</button>
+        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+          <button class="btn btn-sm btn-outline" data-toggle-role="${accUid}">${acc.role==='admin'?'一般に戻す':'管理者にする'}</button>
+          <button class="btn btn-sm btn-danger" data-delete-account="${accUid}">削除</button>
+        </div>
       </div>`).join('');
     return `
       <div class="roster-toolbar">
@@ -1630,6 +1633,41 @@ function attachAdminEvents(){
     const targetUid = b.dataset.toggleRole;
     DB.accounts[targetUid].role = DB.accounts[targetUid].role==='admin' ? 'parent' : 'admin';
     await saveAccount(targetUid, DB.accounts[targetUid]); toast('権限を更新しました'); render();
+  }));
+  document.querySelectorAll('[data-delete-account]').forEach(b=>b.addEventListener('click', async ()=>{
+    const targetUid = b.dataset.deleteAccount;
+    const targetAcc = DB.accounts[targetUid];
+    if(!targetAcc) return;
+
+    if(targetUid === session.uid){
+      alert('自分自身のアカウントはここから削除できません。');
+      return;
+    }
+
+    const childIds = (targetAcc.children||[]).map(c=>c.id);
+    const targetName = targetAcc.name || targetAcc.email || 'このメンバー';
+    if(!confirm(`「${targetName}」のアカウントを完全に削除しますか？\n\n登録されている子ども、記録、イベントの出欠情報も削除されます。\nこの操作は元に戻せません。`)) return;
+
+    // 保護者に紐づく子どもの記録とイベント出欠を削除
+    childIds.forEach(childId=>{
+      delete DB.records[childId];
+      Object.keys(DB.attendance||{}).forEach(eventId=>{
+        if(DB.attendance[eventId]) delete DB.attendance[eventId][childId];
+      });
+    });
+
+    // Firestore上のアカウントデータを削除
+    await deleteDoc(doc(db,'accounts',targetUid));
+
+    // 共有データを保存
+    await saveKey('records', DB.records);
+    await saveKey('attendance', DB.attendance);
+
+    // 画面上のデータも削除
+    delete DB.accounts[targetUid];
+
+    toast('メンバーと関連データを削除しました');
+    render();
   }));
   document.querySelectorAll('[data-edit-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.editEvent)));
   const saveCodeBtn = document.getElementById('btn-save-admincode');
