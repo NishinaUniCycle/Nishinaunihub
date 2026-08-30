@@ -1562,6 +1562,7 @@ function renderAdminSection(sectionId){
           <div class="roster-row-sub">${(acc.children||[]).map(c=>escapeHtml(c.name)).join('、') || '（ユーザー未登録）'}</div>
         </div>
         <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+          <button class="btn btn-sm btn-outline" data-edit-member="${accUid}">名前・ユーザーを編集</button>
           <button class="btn btn-sm btn-outline" data-toggle-role="${accUid}">${acc.role==='admin'?'一般に戻す':'管理者にする'}</button>
           <button class="btn btn-sm btn-danger" data-delete-account="${accUid}">削除</button>
         </div>
@@ -1581,6 +1582,53 @@ function renderAdminSection(sectionId){
     `;
   }
   return '';
+}
+
+function openAdminMemberModal(targetUid){
+  if(!isAdmin()) return;
+  const acc = DB.accounts[targetUid];
+  if(!acc) return;
+  const children = acc.children || [];
+  const teamOptsFor = (teamId)=>DB.teams.map(t=>`<option value="${t.id}" ${teamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
+  const childRows = children.length ? children.map((c,i)=>`
+    <div class="child-row" style="display:grid; grid-template-columns:1.2fr .8fr 1fr; gap:6px; margin-bottom:8px;">
+      <input class="tiny-input" data-admin-child-name="${i}" value="${escapeHtml(c.name||'')}" placeholder="子どもの名前" />
+      <select class="tiny-input" data-admin-child-grade="${i}">${gradeOptions(GRADE_OPTIONS.includes(c.grade)?c.grade:'')}</select>
+      <select class="tiny-input" data-admin-child-team="${i}">${teamOptsFor(c.teamId)}</select>
+    </div>`).join('') : '<div class="field-hint">登録されている子どもはいません。</div>';
+
+  showModal(`
+    <h3>メンバー情報を編集</h3>
+    <div class="field"><label>保護者の名前</label><input id="admin-member-name" value="${escapeHtml(acc.name||'')}" placeholder="例：山田 花子" /></div>
+    <div class="field">
+      <label>子どもの情報</label>
+      <div class="field-hint" style="margin-bottom:8px;">名前・区分・チーム / クラスを変更できます。</div>
+      ${childRows}
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="admin-member-save">保存する</button>
+    </div>
+  `);
+
+  document.getElementById('admin-member-save').addEventListener('click', async ()=>{
+    const name = document.getElementById('admin-member-name').value.trim();
+    if(!name){ toast('保護者の名前を入力してください'); return; }
+
+    const nextChildren = children.map((c,i)=>({
+      ...c,
+      name: document.querySelector(`[data-admin-child-name="${i}"]`)?.value.trim() || c.name || '',
+      grade: document.querySelector(`[data-admin-child-grade="${i}"]`)?.value || c.grade || '',
+      teamId: document.querySelector(`[data-admin-child-team="${i}"]`)?.value || c.teamId || ''
+    }));
+
+    const nextAcc = {...acc, name, children:nextChildren};
+    await saveAccount(targetUid, nextAcc);
+    DB.accounts[targetUid] = nextAcc;
+    closeModal();
+    toast('メンバー情報を更新しました');
+    render();
+  });
 }
 
 function attachAdminEvents(){
@@ -1631,6 +1679,9 @@ function attachAdminEvents(){
     DB.recordTypes.push({id:uid('r'), name, unit, better});
     await saveKey('recordTypes', DB.recordTypes); toast('種目を追加しました'); render();
   });
+  document.querySelectorAll('[data-edit-member]').forEach(b=>b.addEventListener('click', ()=>{
+    openAdminMemberModal(b.dataset.editMember);
+  }));
   document.querySelectorAll('[data-toggle-role]').forEach(b=>b.addEventListener('click', async ()=>{
     const targetUid = b.dataset.toggleRole;
     DB.accounts[targetUid].role = DB.accounts[targetUid].role==='admin' ? 'parent' : 'admin';
