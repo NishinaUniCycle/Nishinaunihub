@@ -101,8 +101,18 @@
   .btn-outline{background:var(--surface); color:var(--ink); border:1.5px solid var(--line);}
   .btn-danger{background:var(--danger-soft); color:var(--danger);}
   .btn-sm{padding:7px 12px; font-size:13px; border-radius:9px; width:auto;}
-  .child-row{display:flex; gap:8px; margin-bottom:8px; align-items:center;}
-  .child-row input, .child-row select{flex:1; min-width:0;}
+  .child-row{
+    display:flex; flex-direction:column; gap:8px; margin-bottom:10px;
+    padding:12px; border:1.5px solid var(--line); border-radius:12px; background:var(--bg);
+  }
+  .child-row-name{width:100%; min-width:0;}
+  .child-row-meta{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .child-row-meta select{flex:1 1 120px; min-width:96px;}
+  .child-row-meta .btn{margin-left:auto;}
+  @media (max-width:400px){
+    .child-row-meta select{flex:1 1 100%;}
+    .child-row-meta .btn{margin-left:0; width:100%;}
+  }
 
   .topbar{
     display:flex; align-items:center; justify-content:space-between; padding:12px 20px;
@@ -672,10 +682,12 @@ function renderFirstTimeSetup(){
   const err = ui.setupError ? `<div class="msg-err">${escapeHtml(ui.setupError)}</div>` : '';
   const childrenRows = ui.regChildren.map((c,i)=>`
     <div class="child-row" data-idx="${i}">
-      <input placeholder="ユーザーの名前" value="${escapeHtml(c.name)}" data-cf="name" />
-      <select data-cf="grade" style="max-width:120px">${gradeOptions(c.grade)}</select>
-      <select data-cf="teamId">${DB.teams.map(t=>`<option value="${t.id}" ${c.teamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select>
-      <button type="button" class="btn btn-sm btn-danger" data-remove-child="${i}">削除</button>
+      <input class="child-row-name" placeholder="ユーザーの名前（フルネーム）" value="${escapeHtml(c.name)}" data-cf="name" />
+      <div class="child-row-meta">
+        <select data-cf="grade">${gradeOptions(c.grade)}</select>
+        <select data-cf="teamId">${DB.teams.map(t=>`<option value="${t.id}" ${c.teamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select>
+        <button type="button" class="btn btn-sm btn-danger" data-remove-child="${i}">削除</button>
+      </div>
     </div>`).join('');
   return `
   <div class="auth-wrap"><div class="auth-card">
@@ -1696,10 +1708,12 @@ function openMemberModal(accUid){
   const teamOpts = (selTeamId)=>DB.teams.map(t=>`<option value="${t.id}" ${selTeamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
   const childRows = acc._editChildren.map((c,i)=>`
     <div class="child-row" data-idx="${i}">
-      <input placeholder="子どもの名前" value="${escapeHtml(c.name)}" data-mcf="name" />
-      <select data-mcf="grade" style="max-width:120px">${gradeOptions(GRADE_OPTIONS.includes(c.grade)?c.grade:'')}</select>
-      <select data-mcf="teamId">${teamOpts(c.teamId)}</select>
-      <button type="button" class="btn btn-sm btn-danger" data-mem-remove-child="${i}">削除</button>
+      <input class="child-row-name" placeholder="子どもの名前（フルネーム）" value="${escapeHtml(c.name)}" data-mcf="name" />
+      <div class="child-row-meta">
+        <select data-mcf="grade">${gradeOptions(GRADE_OPTIONS.includes(c.grade)?c.grade:'')}</select>
+        <select data-mcf="teamId">${teamOpts(c.teamId)}</select>
+        <button type="button" class="btn btn-sm btn-danger" data-mem-remove-child="${i}">削除</button>
+      </div>
     </div>`).join('');
   showModal(`
     <h3>メンバーを編集</h3>
