@@ -218,6 +218,12 @@
   .board-empty{padding:42px 20px;}
   .board-compose-note{font-size:11.5px; color:var(--ink-faint); margin-top:6px; line-height:1.5;}
   .board-datetime-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px;}
+  .board-popup-list{display:flex;flex-direction:column;gap:14px;max-height:60vh;overflow:auto;}
+  .board-popup-post{padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);}
+  .board-popup-post-title{font-weight:900;font-size:14px;margin-bottom:6px;}
+  .board-popup-post-meta{font-size:11px;color:var(--ink-faint);margin-bottom:9px;}
+  .board-popup-post-body{font-size:14px;line-height:1.75;white-space:pre-wrap;word-break:break-word;}
+
   @media (max-width:640px){
     .board-datetime-grid{grid-template-columns:1fr;}
     .board-post-head{flex-direction:column; gap:5px;}
@@ -740,6 +746,56 @@ function attachShellEvents(){
 /* ================= CALENDAR ================= */
 function eventsOn(dateStr){ return DB.events.filter(e=>e.date===dateStr).sort((a,b)=> (a.startTime||'').localeCompare(b.startTime||'')); }
 
+
+function boardPopupDismissedIds(){
+  try{
+    const raw = localStorage.getItem('boardPopupDismissed:'+(session?.uid||'guest'));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  }catch(e){ return new Set(); }
+}
+function markBoardPopupsDismissed(posts){
+  try{
+    const key = 'boardPopupDismissed:'+(session?.uid||'guest');
+    const set = boardPopupDismissedIds();
+    posts.forEach(p=>set.add(p.id));
+    localStorage.setItem(key, JSON.stringify([...set]));
+  }catch(e){}
+}
+function boardPopupPosts(){
+  const now = Date.now();
+  const dismissed = boardPopupDismissedIds();
+  return visibleBoardPosts().filter(p=>{
+    const start = Date.parse(p.startAt||'');
+    const end = Date.parse(p.endAt||'');
+    return p.boardPopup === true
+      && !dismissed.has(p.id)
+      && !Number.isNaN(start) && !Number.isNaN(end)
+      && start <= now && now <= end;
+  });
+}
+function showBoardPopupIfNeeded(){
+  const posts = boardPopupPosts();
+  if(!posts.length) return;
+  const rows = posts.map(p=>`
+    <article class="board-popup-post">
+      <div class="board-popup-post-title">📢 掲示板のお知らせ</div>
+      <div class="board-popup-post-meta">掲載：${escapeHtml(formatBoardDateTime(p.startAt))} ～ ${escapeHtml(formatBoardDateTime(p.endAt))}</div>
+      <div class="board-popup-post-body">${escapeHtml(p.body)}</div>
+    </article>`).join('');
+  showModal(`
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
+      <h3 style="margin:0;">📢 お知らせ</h3>
+      <button id="board-popup-close" class="btn btn-outline btn-sm" aria-label="閉じる" title="閉じる">×</button>
+    </div>
+    <div class="board-popup-list">${rows}</div>
+  `);
+  document.getElementById('board-popup-close').addEventListener('click', ()=>{
+    markBoardPopupsDismissed(posts);
+    closeModal();
+  });
+}
+
 function renderCalendarView(){
   const y=ui.calYear, m=ui.calMonth;
   const first = new Date(y,m,1);
@@ -888,6 +944,7 @@ function attachCalendarEvents(){
   document.querySelectorAll('[data-date]').forEach(b=>b.addEventListener('click', ()=>{ ui.selectedDate=b.dataset.date; render(); }));
   const newBtn = document.getElementById('btn-new-event');
   if(newBtn) newBtn.addEventListener('click', ()=>openEventModal(null));
+  setTimeout(showBoardPopupIfNeeded, 0);
   document.querySelectorAll('[data-edit-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.editEvent)));
   document.querySelectorAll('[data-del-event]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('このイベントを削除しますか？')) return;
@@ -1172,6 +1229,13 @@ function openBoardModal(postId){
       <div class="field"><label>掲載開始</label><input id="board-start" type="datetime-local" value="${escapeHtml(defaultStart)}" /></div>
       <div class="field"><label>掲載終了</label><input id="board-end" type="datetime-local" value="${escapeHtml(defaultEnd)}" /></div>
     </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input id="board-popup" type="checkbox" ${existing ? (existing.boardPopup ? 'checked' : '') : 'checked'} />
+        <span>カレンダーを開いたときにポップアップする</span>
+      </label>
+      <div class="field-hint">×で閉じた投稿は、このユーザーには次回以降ポップアップしません。</div>
+    </div>
     <div class="field-hint">開始日時になると表示され、終了日時を過ぎると掲示板から非表示になります。</div>
     <div class="modal-actions">
       <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
@@ -1182,6 +1246,7 @@ function openBoardModal(postId){
     const body = document.getElementById('board-body').value.trim();
     const startAt = document.getElementById('board-start').value;
     const endAt = document.getElementById('board-end').value;
+    const boardPopup = document.getElementById('board-popup').checked;
     const teamIds = [...document.querySelectorAll('[data-board-team-check]:checked')].map(cb=>cb.value);
     if(!body){ toast('メッセージを入力してください'); return; }
     if(!teamIds.length){ toast('宛先のチームを1つ以上選んでください'); return; }
@@ -1192,7 +1257,7 @@ function openBoardModal(postId){
       id: existing?.id || uid('b'),
       authorUid: existing?.authorUid || session.uid,
       authorName: existing?.authorName || currentAccount()?.name || session.name || 'ユーザー',
-      body, teamIds,
+      body, teamIds, boardPopup,
       startAt, endAt,
       createdAt: existing?.createdAt || timestamp,
       updatedAt: timestamp
