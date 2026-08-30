@@ -228,7 +228,7 @@
   .board-popup-list{display:flex;flex-direction:column;gap:14px;max-height:60vh;overflow:auto;}
   .board-popup-post{padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);}
   .board-popup-post-title{font-weight:900;font-size:14px;margin-bottom:6px;}
-  .board-popup-post-meta{font-size:11px;color:var(--ink-faint);margin-bottom:9px;}
+  .board-popup-post-meta{font-size:11px;color:var(--ink-faint);margin-top:9px;text-align:right;}
   .board-popup-post-body{font-size:14px;line-height:1.75;white-space:pre-wrap;word-break:break-word;}
 
   @media (max-width:640px){
@@ -786,9 +786,8 @@ function showBoardPopupIfNeeded(){
   if(!posts.length) return;
   const rows = posts.map(p=>`
     <article class="board-popup-post">
-      <div class="board-popup-post-title">📢 掲示板のお知らせ</div>
-      <div class="board-popup-post-meta">掲載：${escapeHtml(formatBoardDateTime(p.startAt))} ～ ${escapeHtml(formatBoardDateTime(p.endAt))}</div>
       <div class="board-popup-post-body">${escapeHtml(p.body)}</div>
+      <div class="board-popup-post-meta">掲載期間：${escapeHtml(formatBoardDateTime(p.startAt))} ～ ${escapeHtml(formatBoardDateTime(p.endAt))}</div>
     </article>`).join('');
   showModal(`
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
