@@ -131,9 +131,12 @@
   .section-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px; flex-wrap:wrap;}
   .section-head h2{font-size:20px; margin:0; display:flex; align-items:center; gap:8px;}
   .calendar-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
-  .board-popup-option{margin:0 0 4px;}
-  .board-popup-label{display:inline-flex;align-items:center;gap:7px;min-height:0;padding:0;font-size:13px;font-weight:600;line-height:1.4;cursor:pointer;}
+  .board-popup-option{width:100%;margin:10px 0 2px;text-align:center;}
+  .board-popup-label{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:0;padding:0;font-size:13px;font-weight:600;line-height:1.4;cursor:pointer;}
   .board-popup-label input[type="checkbox"]{width:16px;height:16px;margin:0;flex:0 0 auto;}
+  @media (max-width:640px){
+    .board-popup-option{margin-top:10px;margin-bottom:4px;}
+  }
 
   .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow);}
   .pad{padding:20px;}
