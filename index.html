@@ -843,7 +843,7 @@ function renderEventRow(e){
         <span>❔ <b>${pending.length}</b> 未定</span>
       </div>
       ${eligibleChildren.length ? `<button class="btn btn-outline btn-sm" style="margin-top:8px;" data-view-attendance="${e.id}">全員の出欠を見る</button>` : ''}
-      ${isAdmin() ? `<div style="margin-top:10px;"><button class="btn btn-outline btn-sm" data-edit-event="${e.id}">編集</button> <button class="btn btn-danger btn-sm" data-del-event="${e.id}">削除</button></div>` : ''}
+      ${isAdmin() ? `<div style="margin-top:10px;"><button class="btn btn-outline btn-sm" data-edit-event="${e.id}">編集</button> <button class="btn btn-outline btn-sm" data-copy-event="${e.id}">コピー</button> <button class="btn btn-danger btn-sm" data-del-event="${e.id}">削除</button></div>` : ''}
     </div>
   </div>`;
 }
@@ -855,6 +855,7 @@ function attachCalendarEvents(){
   const newBtn = document.getElementById('btn-new-event');
   if(newBtn) newBtn.addEventListener('click', ()=>openEventModal(null));
   document.querySelectorAll('[data-edit-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.editEvent)));
+  document.querySelectorAll('[data-copy-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.copyEvent, true)));
   document.querySelectorAll('[data-del-event]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('このイベントを削除しますか？')) return;
     DB.events = DB.events.filter(e=>e.id!==b.dataset.delEvent);
@@ -949,8 +950,9 @@ function attachAttendanceModalEvents(eventId){
   }));
 }
 
-function openEventModal(eventId){
-  const ev = eventId ? DB.events.find(e=>e.id===eventId) : {id:null, title:'', teamIds:DB.teams[0]?[DB.teams[0].id]:[], date:ui.selectedDate, startTime:'', endTime:'', location:'', note:''};
+function openEventModal(eventId, copyMode=false){
+  const source = eventId ? DB.events.find(e=>e.id===eventId) : null;
+  const ev = source ? {...source, id: copyMode ? null : source.id, title: copyMode ? `${source.title}（コピー）` : source.title, date: copyMode ? (ui.selectedDate || source.date) : source.date} : {id:null, title:'', teamIds:DB.teams[0]?[DB.teams[0].id]:[], date:ui.selectedDate, startTime:'', endTime:'', location:'', note:''};
   const selectedTeamIds = eventTeamIds(ev);
   const teamChecks = DB.teams.map(t=>`
     <label class="team-check">
@@ -959,7 +961,7 @@ function openEventModal(eventId){
     </label>`).join('');
   const locList = DB.locations.map(l=>`<button type="button" class="loc-list-item" data-loc-pick="${escapeHtml(l.name)}">📍 ${escapeHtml(l.name)}</button>`).join('');
   showModal(`
-    <h3>${eventId?'イベントを編集':'新しいイベント'}</h3>
+    <h3>${eventId && !copyMode?'イベントを編集':copyMode?'イベントをコピー':'新しいイベント'}</h3>
     <div class="event-form">
     <div class="field"><label>タイトル</label><input id="ev-title" value="${escapeHtml(ev.title)}" placeholder="例：通常練習" /></div>
     <div class="field">
@@ -1538,7 +1540,7 @@ function renderAdminSection(sectionId){
   }
   if(sectionId==='events'){
     const upcoming = DB.events.slice().sort((a,b)=>a.date.localeCompare(b.date)).filter(e=>e.date>=fmtDate(new Date())).slice(0,8);
-    const eventRows = upcoming.map(e=>`<div class="list-row"><span>${e.date} ${e.startTime||''} - ${escapeHtml(e.title)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(eventTeamIds(e).map(id=>teamById(id)?.name).filter(Boolean).join('・')||'全体')})</span></span><span><button class="btn btn-sm btn-outline" data-edit-event="${e.id}">編集</button></span></div>`).join('') || `<div style="color:var(--ink-faint); font-size:13px; padding:8px 0;">今後の予定はありません</div>`;
+    const eventRows = upcoming.map(e=>`<div class="list-row"><span>${e.date} ${e.startTime||''} - ${escapeHtml(e.title)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(eventTeamIds(e).map(id=>teamById(id)?.name).filter(Boolean).join('・')||'全体')})</span></span><span><button class="btn btn-sm btn-outline" data-edit-event="${e.id}">編集</button> <button class="btn btn-sm btn-outline" data-copy-event="${e.id}">コピー</button></span></div>`).join('') || `<div style="color:var(--ink-faint); font-size:13px; padding:8px 0;">今後の予定はありません</div>`;
     return eventRows;
   }
   if(sectionId==='roster'){
@@ -1723,6 +1725,7 @@ function attachAdminEvents(){
     render();
   }));
   document.querySelectorAll('[data-edit-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.editEvent)));
+  document.querySelectorAll('[data-copy-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.copyEvent, true)));
   const saveCodeBtn = document.getElementById('btn-save-admincode');
   if(saveCodeBtn) saveCodeBtn.addEventListener('click', async ()=>{
     DB.settings.adminCode = document.getElementById('admincode-input').value.trim() || DB.settings.adminCode;
