@@ -608,6 +608,11 @@ function canEditChild(childId){ if(isAdmin()) return true; return myChildren().s
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
 /* ---------------- render root ---------------- */
+try{
+  const savedWeekStart = localStorage.getItem('calendarWeekStartsMonday');
+  if(savedWeekStart !== null) ui.weekStartsMonday = savedWeekStart !== '0';
+}catch(e){}
+
 function render(){
   if(CONFIG_NOT_SET) return;
   const root = document.getElementById('app-root');
@@ -746,7 +751,7 @@ function renderCalendarView(){
   while(cells.length%7!==0 || cells.length<42) { const nd = cells.length - (startDow+daysInMonth) + 1; cells.push({d:nd, other:true, dateObj:new Date(y,m+1,nd)}); if(cells.length>=42) break; }
 
   const todayStr = fmtDate(new Date());
-  const dows = ['日','月','火','水','木','金','土'];
+  const dows = ui.weekStartsMonday ? ['月','火','水','木','金','土','日'] : ['日','月','火','水','木','金','土'];
 
   const grid = cells.map(c=>{
     const ds = fmtDate(c.dateObj);
@@ -781,6 +786,7 @@ function renderCalendarView(){
         <button id="cal-prev">‹</button>
         <div class="cal-month-label">${monthLabel}</div>
         <button id="cal-next">›</button>
+        <button id="cal-week-start" class="btn btn-secondary btn-sm" title="週の開始曜日を切り替えます">月曜始まり</button>
       </div>
       <div class="cal-grid">
         ${dows.map(d=>`<div class="cal-dow">${d}</div>`).join('')}
@@ -843,19 +849,27 @@ function renderEventRow(e){
         <span>❔ <b>${pending.length}</b> 未定</span>
       </div>
       ${eligibleChildren.length ? `<button class="btn btn-outline btn-sm" style="margin-top:8px;" data-view-attendance="${e.id}">全員の出欠を見る</button>` : ''}
-      ${isAdmin() ? `<div style="margin-top:10px;"><button class="btn btn-outline btn-sm" data-edit-event="${e.id}">編集</button> <button class="btn btn-outline btn-sm" data-copy-event="${e.id}">コピー</button> <button class="btn btn-danger btn-sm" data-del-event="${e.id}">削除</button></div>` : ''}
+      ${isAdmin() ? `<div style="margin-top:10px;"><button class="btn btn-outline btn-sm" data-edit-event="${e.id}">編集</button> <button class="btn btn-danger btn-sm" data-del-event="${e.id}">削除</button></div>` : ''}
     </div>
   </div>`;
 }
 
 function attachCalendarEvents(){
+  const weekBtn = document.getElementById('cal-week-start');
+  if(weekBtn){
+    weekBtn.textContent = ui.weekStartsMonday ? '月曜始まり' : '日曜始まり';
+    weekBtn.addEventListener('click', ()=>{
+      ui.weekStartsMonday = !ui.weekStartsMonday;
+      try{ localStorage.setItem('calendarWeekStartsMonday', ui.weekStartsMonday ? '1' : '0'); }catch(e){}
+      render();
+    });
+  }
   document.getElementById('cal-prev').addEventListener('click', ()=>{ ui.calMonth--; if(ui.calMonth<0){ui.calMonth=11; ui.calYear--;} render(); });
   document.getElementById('cal-next').addEventListener('click', ()=>{ ui.calMonth++; if(ui.calMonth>11){ui.calMonth=0; ui.calYear++;} render(); });
   document.querySelectorAll('[data-date]').forEach(b=>b.addEventListener('click', ()=>{ ui.selectedDate=b.dataset.date; render(); }));
   const newBtn = document.getElementById('btn-new-event');
   if(newBtn) newBtn.addEventListener('click', ()=>openEventModal(null));
   document.querySelectorAll('[data-edit-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.editEvent)));
-  document.querySelectorAll('[data-copy-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.copyEvent, true)));
   document.querySelectorAll('[data-del-event]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('このイベントを削除しますか？')) return;
     DB.events = DB.events.filter(e=>e.id!==b.dataset.delEvent);
@@ -950,9 +964,8 @@ function attachAttendanceModalEvents(eventId){
   }));
 }
 
-function openEventModal(eventId, copyMode=false){
-  const source = eventId ? DB.events.find(e=>e.id===eventId) : null;
-  const ev = source ? {...source, id: copyMode ? null : source.id, title: copyMode ? `${source.title}（コピー）` : source.title, date: copyMode ? (ui.selectedDate || source.date) : source.date} : {id:null, title:'', teamIds:DB.teams[0]?[DB.teams[0].id]:[], date:ui.selectedDate, startTime:'', endTime:'', location:'', note:''};
+function openEventModal(eventId){
+  const ev = eventId ? DB.events.find(e=>e.id===eventId) : {id:null, title:'', teamIds:DB.teams[0]?[DB.teams[0].id]:[], date:ui.selectedDate, startTime:'', endTime:'', location:'', note:''};
   const selectedTeamIds = eventTeamIds(ev);
   const teamChecks = DB.teams.map(t=>`
     <label class="team-check">
@@ -961,7 +974,7 @@ function openEventModal(eventId, copyMode=false){
     </label>`).join('');
   const locList = DB.locations.map(l=>`<button type="button" class="loc-list-item" data-loc-pick="${escapeHtml(l.name)}">📍 ${escapeHtml(l.name)}</button>`).join('');
   showModal(`
-    <h3>${eventId && !copyMode?'イベントを編集':copyMode?'イベントをコピー':'新しいイベント'}</h3>
+    <h3>${eventId?'イベントを編集':'新しいイベント'}</h3>
     <div class="event-form">
     <div class="field"><label>タイトル</label><input id="ev-title" value="${escapeHtml(ev.title)}" placeholder="例：通常練習" /></div>
     <div class="field">
@@ -1540,7 +1553,7 @@ function renderAdminSection(sectionId){
   }
   if(sectionId==='events'){
     const upcoming = DB.events.slice().sort((a,b)=>a.date.localeCompare(b.date)).filter(e=>e.date>=fmtDate(new Date())).slice(0,8);
-    const eventRows = upcoming.map(e=>`<div class="list-row"><span>${e.date} ${e.startTime||''} - ${escapeHtml(e.title)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(eventTeamIds(e).map(id=>teamById(id)?.name).filter(Boolean).join('・')||'全体')})</span></span><span><button class="btn btn-sm btn-outline" data-edit-event="${e.id}">編集</button> <button class="btn btn-sm btn-outline" data-copy-event="${e.id}">コピー</button></span></div>`).join('') || `<div style="color:var(--ink-faint); font-size:13px; padding:8px 0;">今後の予定はありません</div>`;
+    const eventRows = upcoming.map(e=>`<div class="list-row"><span>${e.date} ${e.startTime||''} - ${escapeHtml(e.title)} <span style="color:var(--ink-faint); font-size:12px;">(${escapeHtml(eventTeamIds(e).map(id=>teamById(id)?.name).filter(Boolean).join('・')||'全体')})</span></span><span><button class="btn btn-sm btn-outline" data-edit-event="${e.id}">編集</button></span></div>`).join('') || `<div style="color:var(--ink-faint); font-size:13px; padding:8px 0;">今後の予定はありません</div>`;
     return eventRows;
   }
   if(sectionId==='roster'){
@@ -1564,7 +1577,6 @@ function renderAdminSection(sectionId){
           <div class="roster-row-sub">${(acc.children||[]).map(c=>escapeHtml(c.name)).join('、') || '（ユーザー未登録）'}</div>
         </div>
         <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-          <button class="btn btn-sm btn-outline" data-edit-member="${accUid}">名前・ユーザーを編集</button>
           <button class="btn btn-sm btn-outline" data-toggle-role="${accUid}">${acc.role==='admin'?'一般に戻す':'管理者にする'}</button>
           <button class="btn btn-sm btn-danger" data-delete-account="${accUid}">削除</button>
         </div>
@@ -1584,53 +1596,6 @@ function renderAdminSection(sectionId){
     `;
   }
   return '';
-}
-
-function openAdminMemberModal(targetUid){
-  if(!isAdmin()) return;
-  const acc = DB.accounts[targetUid];
-  if(!acc) return;
-  const children = acc.children || [];
-  const teamOptsFor = (teamId)=>DB.teams.map(t=>`<option value="${t.id}" ${teamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
-  const childRows = children.length ? children.map((c,i)=>`
-    <div class="child-row" style="display:grid; grid-template-columns:1.2fr .8fr 1fr; gap:6px; margin-bottom:8px;">
-      <input class="tiny-input" data-admin-child-name="${i}" value="${escapeHtml(c.name||'')}" placeholder="子どもの名前" />
-      <select class="tiny-input" data-admin-child-grade="${i}">${gradeOptions(GRADE_OPTIONS.includes(c.grade)?c.grade:'')}</select>
-      <select class="tiny-input" data-admin-child-team="${i}">${teamOptsFor(c.teamId)}</select>
-    </div>`).join('') : '<div class="field-hint">登録されている子どもはいません。</div>';
-
-  showModal(`
-    <h3>メンバー情報を編集</h3>
-    <div class="field"><label>保護者の名前</label><input id="admin-member-name" value="${escapeHtml(acc.name||'')}" placeholder="例：山田 花子" /></div>
-    <div class="field">
-      <label>子どもの情報</label>
-      <div class="field-hint" style="margin-bottom:8px;">名前・区分・チーム / クラスを変更できます。</div>
-      ${childRows}
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
-      <button class="btn btn-primary" id="admin-member-save">保存する</button>
-    </div>
-  `);
-
-  document.getElementById('admin-member-save').addEventListener('click', async ()=>{
-    const name = document.getElementById('admin-member-name').value.trim();
-    if(!name){ toast('保護者の名前を入力してください'); return; }
-
-    const nextChildren = children.map((c,i)=>({
-      ...c,
-      name: document.querySelector(`[data-admin-child-name="${i}"]`)?.value.trim() || c.name || '',
-      grade: document.querySelector(`[data-admin-child-grade="${i}"]`)?.value || c.grade || '',
-      teamId: document.querySelector(`[data-admin-child-team="${i}"]`)?.value || c.teamId || ''
-    }));
-
-    const nextAcc = {...acc, name, children:nextChildren};
-    await saveAccount(targetUid, nextAcc);
-    DB.accounts[targetUid] = nextAcc;
-    closeModal();
-    toast('メンバー情報を更新しました');
-    render();
-  });
 }
 
 function attachAdminEvents(){
@@ -1681,9 +1646,6 @@ function attachAdminEvents(){
     DB.recordTypes.push({id:uid('r'), name, unit, better});
     await saveKey('recordTypes', DB.recordTypes); toast('種目を追加しました'); render();
   });
-  document.querySelectorAll('[data-edit-member]').forEach(b=>b.addEventListener('click', ()=>{
-    openAdminMemberModal(b.dataset.editMember);
-  }));
   document.querySelectorAll('[data-toggle-role]').forEach(b=>b.addEventListener('click', async ()=>{
     const targetUid = b.dataset.toggleRole;
     DB.accounts[targetUid].role = DB.accounts[targetUid].role==='admin' ? 'parent' : 'admin';
@@ -1725,7 +1687,6 @@ function attachAdminEvents(){
     render();
   }));
   document.querySelectorAll('[data-edit-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.editEvent)));
-  document.querySelectorAll('[data-copy-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.copyEvent, true)));
   const saveCodeBtn = document.getElementById('btn-save-admincode');
   if(saveCodeBtn) saveCodeBtn.addEventListener('click', async ()=>{
     DB.settings.adminCode = document.getElementById('admincode-input').value.trim() || DB.settings.adminCode;
