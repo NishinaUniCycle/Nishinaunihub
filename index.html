@@ -130,6 +130,7 @@
   main{flex:1; padding:22px 20px 60px; max-width:1080px; width:100%; margin:0 auto;}
   .section-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px; flex-wrap:wrap;}
   .section-head h2{font-size:20px; margin:0; display:flex; align-items:center; gap:8px;}
+  .calendar-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
   .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow);}
   .pad{padding:20px;}
 
@@ -795,7 +796,10 @@ function renderCalendarView(){
   return `
     <div class="section-head">
       <h2>${wheelSVG(22,false)} 練習カレンダー</h2>
-      ${isAdmin() ? `<button class="btn btn-secondary btn-sm" id="cal-week-start" title="週の開始曜日を切り替えます">切替</button> <button class="btn btn-primary btn-sm" id="btn-new-event">＋ イベントを追加</button>` : `<button class="btn btn-secondary btn-sm" id="cal-week-start" title="週の開始曜日を切り替えます">切替</button>`}
+      <div class="calendar-actions">
+        <button class="btn btn-secondary btn-sm" id="cal-week-start" title="週の開始曜日を切り替えます">切替</button>
+        ${isAdmin() ? `<button class="btn btn-primary btn-sm" id="btn-new-event">＋ イベントを追加</button>` : ''}
+      </div>
     </div>
     <div class="card pad" style="margin-bottom:18px;">
       <div class="cal-nav" style="justify-content:space-between; margin-bottom:14px;">
