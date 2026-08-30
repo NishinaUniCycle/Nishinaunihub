@@ -6,6 +6,11 @@
 <title>Nishina Unicycle Hub | 西奈一輪車クラブ部</title>
 <link rel="icon" type="image/png" href="./favicon.png" />
 <link rel="apple-touch-icon" href="./favicon.png" />
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#2F5FE0" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Unicycle Hub" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
@@ -1871,6 +1876,29 @@ function closeModal(){ document.getElementById('modal-root').innerHTML=''; }
 
 /* ================= INIT ================= */
 boot();
+</script>
+
+<script>
+/* ================= PWA更新まわり =================
+   ・Service Workerを登録し、新しいバージョンが公開されたら
+     ユーザーがログアウト/ログインしなくても自動で最新版に切り替える
+*/
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      // 60秒ごとにバックグラウンドで更新確認（開いたままでも気づける）
+      setInterval(() => { reg.update(); }, 60 * 1000);
+    }).catch((err) => console.error('Service Worker登録に失敗:', err));
+
+    // 新しいService Workerが有効化されたら、一度だけ自動リロード
+    let hasReloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hasReloaded) return;
+      hasReloaded = true;
+      window.location.reload();
+    });
+  });
+}
 </script>
 </body>
 </html>
