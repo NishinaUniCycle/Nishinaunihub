@@ -779,14 +779,13 @@ function renderCalendarView(){
   return `
     <div class="section-head">
       <h2>${wheelSVG(22,false)} 練習カレンダー</h2>
-      ${isAdmin() ? `<button class="btn btn-primary btn-sm" id="btn-new-event">＋ イベントを追加</button>` : ''}
+      ${isAdmin() ? `<button class="btn btn-secondary btn-sm" id="cal-week-start" title="週の開始曜日を切り替えます">切替</button> <button class="btn btn-primary btn-sm" id="btn-new-event">＋ イベントを追加</button>` : `<button class="btn btn-secondary btn-sm" id="cal-week-start" title="週の開始曜日を切り替えます">切替</button>`}
     </div>
     <div class="card pad" style="margin-bottom:18px;">
       <div class="cal-nav" style="justify-content:space-between; margin-bottom:14px;">
         <button id="cal-prev">‹</button>
         <div class="cal-month-label">${monthLabel}</div>
         <button id="cal-next">›</button>
-        <button id="cal-week-start" class="btn btn-secondary btn-sm" title="週の開始曜日を切り替えます">月曜始まり</button>
       </div>
       <div class="cal-grid">
         ${dows.map(d=>`<div class="cal-dow">${d}</div>`).join('')}
@@ -857,7 +856,7 @@ function renderEventRow(e){
 function attachCalendarEvents(){
   const weekBtn = document.getElementById('cal-week-start');
   if(weekBtn){
-    weekBtn.textContent = ui.weekStartsMonday ? '月曜始まり' : '日曜始まり';
+    weekBtn.textContent = '切替';
     weekBtn.addEventListener('click', ()=>{
       ui.weekStartsMonday = !ui.weekStartsMonday;
       try{ localStorage.setItem('calendarWeekStartsMonday', ui.weekStartsMonday ? '1' : '0'); }catch(e){}
