@@ -1667,6 +1667,7 @@ function renderAdminSection(sectionId){
           <div class="roster-row-sub">${(acc.children||[]).map(c=>escapeHtml(c.name)).join('、') || '（ユーザー未登録）'}</div>
         </div>
         <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+          <button class="btn btn-sm btn-outline" data-edit-member="${accUid}">編集</button>
           <button class="btn btn-sm btn-outline" data-toggle-role="${accUid}">${acc.role==='admin'?'一般に戻す':'管理者にする'}</button>
           <button class="btn btn-sm btn-danger" data-delete-account="${accUid}">削除</button>
         </div>
@@ -1688,7 +1689,68 @@ function renderAdminSection(sectionId){
   return '';
 }
 
+function openMemberModal(accUid){
+  const acc = DB.accounts[accUid];
+  if(!acc) return;
+  if(!acc._editChildren) acc._editChildren = (acc.children||[]).map(c=>({...c}));
+  const teamOpts = (selTeamId)=>DB.teams.map(t=>`<option value="${t.id}" ${selTeamId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
+  const childRows = acc._editChildren.map((c,i)=>`
+    <div class="child-row" data-idx="${i}">
+      <input placeholder="子どもの名前" value="${escapeHtml(c.name)}" data-mcf="name" />
+      <select data-mcf="grade" style="max-width:120px">${gradeOptions(GRADE_OPTIONS.includes(c.grade)?c.grade:'')}</select>
+      <select data-mcf="teamId">${teamOpts(c.teamId)}</select>
+      <button type="button" class="btn btn-sm btn-danger" data-mem-remove-child="${i}">削除</button>
+    </div>`).join('');
+  showModal(`
+    <h3>メンバーを編集</h3>
+    <div class="field"><label>保護者の名前</label><input id="mem-name" value="${escapeHtml(acc.name||'')}" placeholder="例：静岡 太郎" /></div>
+    <div class="field">
+      <label>子どもの登録</label>
+      <div id="mem-children-rows">${childRows || '<div class="field-hint">登録された子どもはいません</div>'}</div>
+      <button type="button" class="btn btn-ghost btn-sm" id="btn-mem-add-child" style="margin-top:6px;">＋ 子どもを追加</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="mem-save">保存する</button>
+    </div>
+  `);
+  const addBtn = document.getElementById('btn-mem-add-child');
+  addBtn.addEventListener('click', ()=>{
+    acc._editChildren.push({id:uid('c'), name:'', grade:'', teamId:DB.teams[0]?.id||''});
+    openMemberModal(accUid);
+  });
+  document.querySelectorAll('#mem-children-rows [data-mem-remove-child]').forEach(b=>b.addEventListener('click', ()=>{
+    acc._editChildren.splice(+b.dataset.memRemoveChild, 1);
+    openMemberModal(accUid);
+  }));
+  document.querySelectorAll('#mem-children-rows .child-row').forEach(row=>{
+    row.querySelectorAll('[data-mcf]').forEach(inp=>{
+      inp.addEventListener('input', ()=>{ acc._editChildren[+row.dataset.idx][inp.dataset.mcf] = inp.value; });
+    });
+  });
+  document.getElementById('mem-save').addEventListener('click', async ()=>{
+    const name = document.getElementById('mem-name').value.trim();
+    if(!name){ toast('保護者の名前を入力してください'); return; }
+    const children = acc._editChildren
+      .filter(c=>c.name.trim())
+      .map(c=>({id:c.id||uid('c'), name:c.name.trim(), grade:c.grade||'', teamId:c.teamId||DB.teams[0]?.id||''}));
+    acc.name = name;
+    acc.children = children;
+    delete acc._editChildren;
+    await saveAccount(accUid, acc);
+    DB.accounts[accUid] = acc;
+    closeModal();
+    toast('メンバー情報を更新しました');
+    render();
+  });
+}
+
 function attachAdminEvents(){
+  document.querySelectorAll('[data-edit-member]').forEach(b=>b.addEventListener('click', ()=>{
+    const acc = DB.accounts[b.dataset.editMember];
+    if(acc) delete acc._editChildren;
+    openMemberModal(b.dataset.editMember);
+  }));
   document.querySelectorAll('[data-open-admin-sub]').forEach(el=>el.addEventListener('click', ()=>{
     ui.adminSub = el.dataset.openAdminSub; ui.rosterQuery=''; render();
   }));
