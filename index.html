@@ -469,7 +469,7 @@ import {
   getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, setDoc, collection, getDocs
+  getFirestore, doc, getDoc, setDoc, collection, getDocs, onSnapshot
 , deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ---------------------------------------------------------
@@ -573,6 +573,34 @@ async function loadSharedData(){
   DB.accounts = await loadAllAccounts();
 }
 
+/* ---------------- realtime sync (Firestore onSnapshot) ----------------
+   teams/recordTypes/events/attendance/records/announcements/settings/locations/accounts
+   すべて同じ仕組みでリアルタイム監視する。誰かが変更した瞬間、他の人の画面にも自動反映される。
+*/
+let realtimeUnsubs = [];
+function stopRealtimeSync(){
+  realtimeUnsubs.forEach(unsub => { try{ unsub(); }catch(e){} });
+  realtimeUnsubs = [];
+}
+function startRealtimeSync(){
+  stopRealtimeSync();
+  const allKeys = [...APP_KEYS, ...SHARED_KEYS];
+  allKeys.forEach(key => {
+    const unsub = onSnapshot(doc(db, collFor(key), key), (snap) => {
+      if(snap.exists()) DB[key] = snap.data().value;
+      if(session && !needsSetup) render();
+    }, (err) => console.error('realtime sync error:', key, err));
+    realtimeUnsubs.push(unsub);
+  });
+  const unsubAccounts = onSnapshot(collection(db,'accounts'), (snap) => {
+    const out = {};
+    snap.forEach(d => { out[d.id] = d.data(); });
+    DB.accounts = out;
+    if(session && !needsSetup) render();
+  }, (err) => console.error('realtime accounts sync error:', err));
+  realtimeUnsubs.push(unsubAccounts);
+}
+
 function fmtDate(d){ const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 
 async function boot(){
@@ -601,8 +629,10 @@ async function boot(){
         needsSetup = true;
         ui.regChildren = [];
       }
+      startRealtimeSync();
     } else {
       session = null; needsSetup = false;
+      stopRealtimeSync();
     }
     const now = new Date();
     ui.calYear = now.getFullYear(); ui.calMonth = now.getMonth();
