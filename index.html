@@ -476,7 +476,7 @@ const TEAM_COLORS = ['#2F5FE0','#F2B400','#E2574C','#1E9E77','#8E5FE0','#2FA9C7'
 let DB = { teams:[], recordTypes:[], accounts:{}, events:[], attendance:{}, records:{}, announcements:[], settings:{adminCode:'nishinaunihub'}, locations:[] };
 let session = null; // {uid, email, name, photoURL}
 let needsSetup = false; // 初回ログイン時、アカウント未作成なら true
-let ui = { view:'calendar', calYear:null, calMonth:null, selectedDate:null, regChildren:[], recordChildId:null, recordTypeFilter:null, setupError:null, adminSub:null, rosterQuery:'' };
+let ui = { view:'calendar', calYear:null, calMonth:null, selectedDate:null, weekStartsMonday:true, regChildren:[], recordChildId:null, recordTypeFilter:null, setupError:null, adminSub:null, rosterQuery:'' };
 
 /* ---------------- storage helpers (Firestore) ---------------- */
 function collFor(key){ return SHARED_KEYS.includes(key) ? 'shared' : 'app'; }
@@ -742,13 +742,29 @@ function eventsOn(dateStr){ return DB.events.filter(e=>e.date===dateStr).sort((a
 function renderCalendarView(){
   const y=ui.calYear, m=ui.calMonth;
   const first = new Date(y,m,1);
-  const startDow = first.getDay();
+  const rawStartDow = first.getDay(); // 0=Sun ... 6=Sat
+  const startDow = ui.weekStartsMonday ? (rawStartDow + 6) % 7 : rawStartDow;
   const daysInMonth = new Date(y,m+1,0).getDate();
   const prevDays = new Date(y,m,0).getDate();
   const cells=[];
-  for(let i=startDow-1;i>=0;i--) cells.push({d:prevDays-i, other:true, dateObj:new Date(y,m-1,prevDays-i)});
-  for(let d=1; d<=daysInMonth; d++) cells.push({d, other:false, dateObj:new Date(y,m,d)});
-  while(cells.length%7!==0 || cells.length<42) { const nd = cells.length - (startDow+daysInMonth) + 1; cells.push({d:nd, other:true, dateObj:new Date(y,m+1,nd)}); if(cells.length>=42) break; }
+
+  // Leading days: their actual dates are preserved; only their grid column changes.
+  for(let i=startDow-1;i>=0;i--){
+    const d = prevDays-i;
+    cells.push({d, other:true, dateObj:new Date(y,m-1,d)});
+  }
+
+  // Current month days.
+  for(let d=1; d<=daysInMonth; d++){
+    cells.push({d, other:false, dateObj:new Date(y,m,d)});
+  }
+
+  // Trailing days: fill complete rows. This keeps the event/date mapping intact.
+  let nextDay = 1;
+  while(cells.length < 42){
+    cells.push({d:nextDay, other:true, dateObj:new Date(y,m+1,nextDay)});
+    nextDay++;
+  }
 
   const todayStr = fmtDate(new Date());
   const dows = ui.weekStartsMonday ? ['月','火','水','木','金','土','日'] : ['日','月','火','水','木','金','土'];
