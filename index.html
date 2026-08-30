@@ -1229,13 +1229,13 @@ function openBoardModal(postId){
       <div class="field"><label>掲載開始</label><input id="board-start" type="datetime-local" value="${escapeHtml(defaultStart)}" /></div>
       <div class="field"><label>掲載終了</label><input id="board-end" type="datetime-local" value="${escapeHtml(defaultEnd)}" /></div>
     </div>
-    <div class="field">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-        <input id="board-popup" type="checkbox" ${existing ? (existing.boardPopup ? 'checked' : '') : 'checked'} />
-        <span>カレンダーを開いたときにポップアップする</span>
+    ${isAdmin() ? `<div class="field">
+      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;">
+        <input id="board-popup" type="checkbox" style="width:16px;height:16px;margin:0;" ${existing ? (existing.boardPopup ? 'checked' : '') : 'checked'} />
+        <span>カレンダーポップアップする</span>
       </label>
-      <div class="field-hint">×で閉じた投稿は、このユーザーには次回以降ポップアップしません。</div>
-    </div>
+      <div class="field-hint">×で閉じた投稿は、そのユーザーには次回以降ポップアップしません。</div>
+    </div>` : ''}
     <div class="field-hint">開始日時になると表示され、終了日時を過ぎると掲示板から非表示になります。</div>
     <div class="modal-actions">
       <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
@@ -1246,7 +1246,8 @@ function openBoardModal(postId){
     const body = document.getElementById('board-body').value.trim();
     const startAt = document.getElementById('board-start').value;
     const endAt = document.getElementById('board-end').value;
-    const boardPopup = document.getElementById('board-popup').checked;
+    const popupEl = document.getElementById('board-popup');
+    const boardPopup = isAdmin() && !!popupEl && popupEl.checked;
     const teamIds = [...document.querySelectorAll('[data-board-team-check]:checked')].map(cb=>cb.value);
     if(!body){ toast('メッセージを入力してください'); return; }
     if(!teamIds.length){ toast('宛先のチームを1つ以上選んでください'); return; }
