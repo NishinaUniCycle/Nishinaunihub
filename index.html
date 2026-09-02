@@ -870,7 +870,9 @@ function showBoardPopupIfNeeded(){
   // 各セクション側にはスクロール領域を持たせず、モーダル本体だけをスクロールさせる。
   const todayRows = events.length ? `
     <section style="margin-bottom:${posts.length?'18px':'0'};">
-      ${renderTodayPopupRows(events)}
+      <div style="display:flex;flex-direction:column;gap:24px;">
+        ${renderTodayPopupRows(events)}
+      </div>
     </section>` : '';
 
   const noticeRows = posts.length ? `
