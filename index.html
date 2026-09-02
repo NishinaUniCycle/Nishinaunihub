@@ -873,22 +873,33 @@ function renderTodayPopupRows(events){
 }
 
 function showBoardPopupIfNeeded(){
-  const events = todayPopupDismissed() ? [] : todayPopupEvents();
+  const allTodayEvents = todayPopupEvents();
+  const events = todayPopupDismissed() ? [] : allTodayEvents;
   const posts = boardPopupPosts();
-  if(!events.length && !posts.length) return;
+
+  // 今日の予定がない日も、ちょっとした応援メッセージを表示する。
+  // その日の予定が追加・変更されると、既存の署名判定で再表示される。
+  if(!events.length && !posts.length && allTodayEvents.length) return;
+  if(!events.length && !posts.length && todayPopupDismissed()) return;
 
   // 今日の予定もお知らせも、ポップアップ内で「1本のスクロール」にする。
   // 各セクション側にはスクロール領域を持たせず、モーダル本体だけをスクロールさせる。
-  const todayRows = events.length ? `
+  const todayRows = allTodayEvents.length
+    ? (events.length ? `
     <section style="margin-bottom:${posts.length?'18px':'0'};">
       <div style="display:flex;flex-direction:column;gap:24px;">
         ${renderTodayPopupRows(events)}
       </div>
-    </section>` : '';
+    </section>` : '')
+    : `
+    <section style="margin-bottom:${posts.length?'18px':'0'};text-align:center;padding:10px 4px 8px;">
+      <div style="font-weight:800;font-size:16px;">本日の予定はありません</div>
+      <div style="margin-top:8px;line-height:1.7;">自主練習や自主勉強・お仕事<br/>頑張ろう😆</div>
+    </section>`;
 
   const noticeRows = posts.length ? `
     <section>
-      ${events.length ? '<h3 style="margin:0 0 12px;">📣 お知らせ</h3>' : ''}
+      ${events.length || !allTodayEvents.length ? '<h3 style="margin:0 0 12px;">📣 お知らせ</h3>' : ''}
       ${posts.map(p=>`
         <article class="board-popup-post">
           <div class="board-popup-post-body">${escapeHtml(p.body)}</div>
@@ -898,7 +909,7 @@ function showBoardPopupIfNeeded(){
 
   showModal(`
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
-      <h3 style="margin:0;">${events.length ? '📅今日の予定' : '📣お知らせ'}</h3>
+      <h3 style="margin:0;">📅今日の予定</h3>
       <button id="board-popup-close" class="btn btn-outline btn-sm" aria-label="閉じる" title="閉じる">×</button>
     </div>
     ${todayRows}${noticeRows}
@@ -915,7 +926,7 @@ function showBoardPopupIfNeeded(){
   }
 
   document.getElementById('board-popup-close').addEventListener('click', ()=>{
-    if(events.length) markTodayPopupDismissed();
+    markTodayPopupDismissed();
     if(posts.length && !BOARD_POPUP_SHOW_EVERY_TIME) markBoardPopupsDismissed(posts);
     closeModal();
   });
@@ -925,7 +936,7 @@ function showBoardPopupIfNeeded(){
   if(backdrop){
     backdrop.addEventListener('click', (e)=>{
       if(e.target === backdrop){
-        if(events.length) markTodayPopupDismissed();
+        markTodayPopupDismissed();
         if(posts.length && !BOARD_POPUP_SHOW_EVERY_TIME) markBoardPopupsDismissed(posts);
       }
     });
