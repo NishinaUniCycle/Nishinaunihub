@@ -890,7 +890,11 @@ function showBoardPopupIfNeeded(){
   `);
   const popupModal = document.querySelector('#modal-backdrop .modal');
   if(popupModal){
+    // 今日の予定＋お知らせは、ポップアップ全体を1つの縦スクロールで読む
+    // 見た目は変えず、スマホで背景のカレンダーが一緒に動くのを防ぐ
     popupModal.style.touchAction = 'pan-y';
+    popupModal.style.overscrollBehavior = 'contain';
+    popupModal.style.webkitOverflowScrolling = 'touch';
     popupModal.addEventListener('touchmove', (e)=>{ e.stopPropagation(); }, {passive:true});
     popupModal.addEventListener('wheel', (e)=>{ e.stopPropagation(); }, {passive:true});
   }
