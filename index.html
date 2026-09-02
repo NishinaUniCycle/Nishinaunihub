@@ -866,19 +866,21 @@ function showBoardPopupIfNeeded(){
   const posts = boardPopupPosts();
   if(!events.length && !posts.length) return;
 
+  // 今日の予定もお知らせも、ポップアップ内で「1本のスクロール」にする。
+  // 各セクション側にはスクロール領域を持たせず、モーダル本体だけをスクロールさせる。
   const todayRows = events.length ? `
     <section style="margin-bottom:${posts.length?'18px':'0'};">
-      <div class="board-popup-list">${renderTodayPopupRows(events)}</div>
+      ${renderTodayPopupRows(events)}
     </section>` : '';
 
   const noticeRows = posts.length ? `
     <section>
       <h3 style="margin:0 0 12px;">📣 お知らせ</h3>
-      <div class="board-popup-list">${posts.map(p=>`
+      ${posts.map(p=>`
         <article class="board-popup-post">
           <div class="board-popup-post-body">${escapeHtml(p.body)}</div>
           <div class="board-popup-post-meta">掲載期間：${escapeHtml(formatBoardDateTime(p.startAt))} ～ ${escapeHtml(formatBoardDateTime(p.endAt))}</div>
-        </article>`).join('')}</div>
+        </article>`).join('')}
     </section>` : '';
 
   showModal(`
