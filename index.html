@@ -836,6 +836,19 @@ function todayPopupEvents(){
   return eventsOn(today);
 }
 
+// 今日の予定は、この画面を開いている間に一度×で閉じたら再表示しない
+// （日付が変われば再び表示対象になる）
+function todayPopupDismissed(){
+  try{
+    return sessionStorage.getItem('todayPopupDismissed:'+fmtDate(new Date())) === '1';
+  }catch(e){ return false; }
+}
+function markTodayPopupDismissed(){
+  try{
+    sessionStorage.setItem('todayPopupDismissed:'+fmtDate(new Date()), '1');
+  }catch(e){}
+}
+
 function renderTodayPopupRows(events){
   return events.map(e=>{
     const ids = eventTeamIds(e);
@@ -849,7 +862,7 @@ function renderTodayPopupRows(events){
 }
 
 function showBoardPopupIfNeeded(){
-  const events = todayPopupEvents();
+  const events = todayPopupDismissed() ? [] : todayPopupEvents();
   const posts = boardPopupPosts();
   if(!events.length && !posts.length) return;
 
@@ -876,6 +889,7 @@ function showBoardPopupIfNeeded(){
     ${todayRows}${noticeRows}
   `);
   document.getElementById('board-popup-close').addEventListener('click', ()=>{
+    if(events.length) markTodayPopupDismissed();
     if(posts.length && !BOARD_POPUP_SHOW_EVERY_TIME) markBoardPopupsDismissed(posts);
     closeModal();
   });
