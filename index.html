@@ -893,6 +893,17 @@ function showBoardPopupIfNeeded(){
     if(posts.length && !BOARD_POPUP_SHOW_EVERY_TIME) markBoardPopupsDismissed(posts);
     closeModal();
   });
+
+  // 枠外タップで閉じた場合も、×で閉じた場合と同じく「今日の予定」を既読扱いにする
+  const backdrop = document.getElementById('modal-backdrop');
+  if(backdrop){
+    backdrop.addEventListener('click', (e)=>{
+      if(e.target === backdrop){
+        if(events.length) markTodayPopupDismissed();
+        if(posts.length && !BOARD_POPUP_SHOW_EVERY_TIME) markBoardPopupsDismissed(posts);
+      }
+    });
+  }
 }
 
 function renderCalendarView(){
