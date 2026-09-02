@@ -888,6 +888,13 @@ function showBoardPopupIfNeeded(){
     </div>
     ${todayRows}${noticeRows}
   `);
+  const popupModal = document.querySelector('#modal-backdrop .modal');
+  if(popupModal){
+    popupModal.style.touchAction = 'pan-y';
+    popupModal.addEventListener('touchmove', (e)=>{ e.stopPropagation(); }, {passive:true});
+    popupModal.addEventListener('wheel', (e)=>{ e.stopPropagation(); }, {passive:true});
+  }
+
   document.getElementById('board-popup-close').addEventListener('click', ()=>{
     if(events.length) markTodayPopupDismissed();
     if(posts.length && !BOARD_POPUP_SHOW_EVERY_TIME) markBoardPopupsDismissed(posts);
