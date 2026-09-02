@@ -828,23 +828,56 @@ function boardPopupPosts(){
       && start <= now && now <= end;
   });
 }
+// ポップアップ設定：true=お知らせを毎回表示、false=×で閉じたら履歴を残す（従来動作）
+const BOARD_POPUP_SHOW_EVERY_TIME = false;
+
+function todayPopupEvents(){
+  const today = fmtDate(new Date());
+  return eventsOn(today);
+}
+
+function renderTodayPopupRows(events){
+  return events.map(e=>{
+    const ids = eventTeamIds(e);
+    const teams = ids.map(id=>teamById(id)).filter(Boolean);
+    const group = teams.length ? teams.map(t=>escapeHtml(t.name)).join('・') : '全体';
+    return `<article class="board-popup-post">
+      <div style="font-weight:800; margin-bottom:8px;">${escapeHtml(e.title||'予定')}</div>
+      <div style="line-height:1.8;">📍 ${escapeHtml(e.location||'未定')}<br/>🕐 ${escapeHtml(e.startTime||'--:--')}${e.endTime ? `～${escapeHtml(e.endTime)}` : ''}<br/>👥 ${group}</div>
+    </article>`;
+  }).join('');
+}
+
 function showBoardPopupIfNeeded(){
+  const events = todayPopupEvents();
   const posts = boardPopupPosts();
-  if(!posts.length) return;
-  const rows = posts.map(p=>`
-    <article class="board-popup-post">
-      <div class="board-popup-post-body">${escapeHtml(p.body)}</div>
-      <div class="board-popup-post-meta">掲載期間：${escapeHtml(formatBoardDateTime(p.startAt))} ～ ${escapeHtml(formatBoardDateTime(p.endAt))}</div>
-    </article>`).join('');
+  if(!events.length && !posts.length) return;
+
+  const todayRows = events.length ? `
+    <section style="margin-bottom:${posts.length?'18px':'0'};">
+      <h3 style="margin:0 0 12px;">📅 今日の予定</h3>
+      <div class="board-popup-list">${renderTodayPopupRows(events)}</div>
+    </section>` : '';
+
+  const noticeRows = posts.length ? `
+    <section>
+      <h3 style="margin:0 0 12px;">📣 お知らせ</h3>
+      <div class="board-popup-list">${posts.map(p=>`
+        <article class="board-popup-post">
+          <div class="board-popup-post-body">${escapeHtml(p.body)}</div>
+          <div class="board-popup-post-meta">掲載期間：${escapeHtml(formatBoardDateTime(p.startAt))} ～ ${escapeHtml(formatBoardDateTime(p.endAt))}</div>
+        </article>`).join('')}</div>
+    </section>` : '';
+
   showModal(`
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
-      <h3 style="margin:0;">📢 お知らせ</h3>
+      <h3 style="margin:0;">${events.length && posts.length ? '📅 今日の予定・📣 お知らせ' : events.length ? '📅 今日の予定' : '📣 お知らせ'}</h3>
       <button id="board-popup-close" class="btn btn-outline btn-sm" aria-label="閉じる" title="閉じる">×</button>
     </div>
-    <div class="board-popup-list">${rows}</div>
+    ${todayRows}${noticeRows}
   `);
   document.getElementById('board-popup-close').addEventListener('click', ()=>{
-    markBoardPopupsDismissed(posts);
+    if(posts.length && !BOARD_POPUP_SHOW_EVERY_TIME) markBoardPopupsDismissed(posts);
     closeModal();
   });
 }
