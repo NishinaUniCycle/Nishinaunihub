@@ -877,7 +877,7 @@ function showBoardPopupIfNeeded(){
 
   const noticeRows = posts.length ? `
     <section>
-      <h3 style="margin:0 0 12px;">📣 お知らせ</h3>
+      ${events.length ? '<h3 style="margin:0 0 12px;">📣 お知らせ</h3>' : ''}
       ${posts.map(p=>`
         <article class="board-popup-post">
           <div class="board-popup-post-body">${escapeHtml(p.body)}</div>
