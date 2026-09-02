@@ -855,7 +855,6 @@ function showBoardPopupIfNeeded(){
 
   const todayRows = events.length ? `
     <section style="margin-bottom:${posts.length?'18px':'0'};">
-      <h3 style="margin:0 0 12px;">📅 今日の予定</h3>
       <div class="board-popup-list">${renderTodayPopupRows(events)}</div>
     </section>` : '';
 
@@ -871,7 +870,7 @@ function showBoardPopupIfNeeded(){
 
   showModal(`
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
-      <h3 style="margin:0;">${events.length && posts.length ? '📅 今日の予定・📣 お知らせ' : events.length ? '📅 今日の予定' : '📣 お知らせ'}</h3>
+      <h3 style="margin:0;">${events.length ? '📅今日の予定' : '📣お知らせ'}</h3>
       <button id="board-popup-close" class="btn btn-outline btn-sm" aria-label="閉じる" title="閉じる">×</button>
     </div>
     ${todayRows}${noticeRows}
