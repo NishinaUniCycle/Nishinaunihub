@@ -801,51 +801,62 @@ function attachShellEvents(){
 function eventsOn(dateStr){ return DB.events.filter(e=>e.date===dateStr).sort((a,b)=> (a.startTime||'').localeCompare(b.startTime||'')); }
 
 
-function boardPopupDismissedIds(){
+function boardPopupDismissedMap(){
   try{
     const raw = localStorage.getItem('boardPopupDismissed:'+(session?.uid||'guest'));
-    const parsed = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed : []);
-  }catch(e){ return new Set(); }
+    const parsed = raw ? JSON.parse(raw) : {};
+    // 旧仕様の配列形式も読み込めるようにしておくが、更新判定ではIDだけを既読扱いにしない
+    if(Array.isArray(parsed)) return Object.fromEntries(parsed.map(id=>[id,'legacy']));
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  }catch(e){ return {}; }
+}
+function boardPostVersion(p){
+  return p.updatedAt || p.createdAt || JSON.stringify({body:p.body||'',teamIds:p.teamIds||[],startAt:p.startAt||'',endAt:p.endAt||'',boardPopup:!!p.boardPopup});
 }
 function markBoardPopupsDismissed(posts){
   try{
     const key = 'boardPopupDismissed:'+(session?.uid||'guest');
-    const set = boardPopupDismissedIds();
-    posts.forEach(p=>set.add(p.id));
-    localStorage.setItem(key, JSON.stringify([...set]));
+    const map = boardPopupDismissedMap();
+    posts.forEach(p=>{ map[p.id] = boardPostVersion(p); });
+    localStorage.setItem(key, JSON.stringify(map));
   }catch(e){}
 }
 function boardPopupPosts(){
   const now = Date.now();
-  const dismissed = boardPopupDismissedIds();
+  const dismissed = boardPopupDismissedMap();
   return visibleBoardPosts().filter(p=>{
     const start = Date.parse(p.startAt||'');
     const end = Date.parse(p.endAt||'');
+    const version = boardPostVersion(p);
     return p.boardPopup === true
-      && !dismissed.has(p.id)
+      && dismissed[p.id] !== version
       && !Number.isNaN(start) && !Number.isNaN(end)
       && start <= now && now <= end;
   });
 }
-// ポップアップ設定：true=お知らせを毎回表示、false=×で閉じたら履歴を残す（従来動作）
+// ポップアップ設定：true=お知らせを毎回表示、false=×で閉じた内容は同じ版だけ既読
 const BOARD_POPUP_SHOW_EVERY_TIME = false;
 
 function todayPopupEvents(){
   const today = fmtDate(new Date());
   return eventsOn(today);
 }
+function todayPopupSignature(){
+  return JSON.stringify(todayPopupEvents().map(e=>({
+    id:e.id, title:e.title||'', date:e.date||'', startTime:e.startTime||'', endTime:e.endTime||'',
+    location:e.location||'', teamIds:(e.teamIds||[]).slice().sort(), note:e.note||''
+  })));
+}
 
-// 今日の予定は、この画面を開いている間に一度×で閉じたら再表示しない
-// （日付が変われば再び表示対象になる）
+// 今日の予定は「その時点の内容」を一度閉じる。予定が追加・変更・削除されると署名が変わるので再表示する。
 function todayPopupDismissed(){
   try{
-    return sessionStorage.getItem('todayPopupDismissed:'+fmtDate(new Date())) === '1';
+    return sessionStorage.getItem('todayPopupDismissed:'+fmtDate(new Date())) === todayPopupSignature();
   }catch(e){ return false; }
 }
 function markTodayPopupDismissed(){
   try{
-    sessionStorage.setItem('todayPopupDismissed:'+fmtDate(new Date()), '1');
+    sessionStorage.setItem('todayPopupDismissed:'+fmtDate(new Date()), todayPopupSignature());
   }catch(e){}
 }
 
