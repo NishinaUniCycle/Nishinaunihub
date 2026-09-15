@@ -171,6 +171,7 @@
   .cal-cell .d-num{font-size:12.5px; font-weight:700; color:var(--ink-soft);}
   .cal-events{display:flex; flex-direction:column; gap:2px; width:100%; overflow:hidden;}
   .cal-event-line{display:flex; align-items:center; gap:3px; font-size:10px; line-height:1.25; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; min-width:0;}
+  .cal-event-tentative{border-left:3px solid var(--gold); padding-left:3px;}
   .cal-event-dots{display:flex; align-items:center; gap:1px; flex-shrink:0;}
   .cal-event-dot{width:6px; height:6px; border-radius:50%; flex-shrink:0;}
   .cal-event-time{font-weight:700; color:var(--ink); flex-shrink:0;}
@@ -980,7 +981,7 @@ function renderCalendarView(){
       const ids = eventTeamIds(e);
       const dots = (ids.length?ids:[null]).map(id=>`<span class="cal-event-dot" style="background:${teamColor(id)}"></span>`).join('');
       const loc = e.location ? escapeHtml(e.location) : '';
-      return `<span class="cal-event-line"><span class="cal-event-dots">${dots}</span><span class="cal-event-time">${escapeHtml(e.startTime||'')}</span><span class="cal-event-loc">${loc}</span></span>`;
+      return `<span class="cal-event-line${e.tentative?' cal-event-tentative':''}"${e.tentative?' title="仮予約"':''}><span class="cal-event-dots">${dots}</span><span class="cal-event-time">${escapeHtml(e.startTime||'')}</span><span class="cal-event-loc">${loc}</span></span>`;
     }).join('');
     const more = evs.length>maxShow ? `<span class="cal-event-more">+${evs.length-maxShow}件</span>` : '';
     const cls = ['cal-cell']; if(c.other) cls.push('other-month'); if(ds===todayStr) cls.push('today'); if(ds===ui.selectedDate) cls.push('selected');
@@ -1070,7 +1071,7 @@ function renderEventRow(e){
         <span>❔ <b>${pending.length}</b> 未定</span>
       </div>
       ${eligibleChildren.length ? `<button class="btn btn-outline btn-sm" style="margin-top:8px;" data-view-attendance="${e.id}">全員の出欠を見る</button>` : ''}
-      ${isAdmin() ? `<div style="margin-top:10px;"><button class="btn btn-outline btn-sm" data-edit-event="${e.id}">編集</button> <button class="btn btn-danger btn-sm" data-del-event="${e.id}">削除</button></div>` : ''}
+      ${isAdmin() ? `<div style="margin-top:10px;"><button class="btn btn-outline btn-sm" data-edit-event="${e.id}">編集</button> <button class="btn btn-outline btn-sm" data-copy-event="${e.id}">コピー</button> <button class="btn btn-danger btn-sm" data-del-event="${e.id}">削除</button></div>` : ''}
     </div>
   </div>`;
 }
@@ -1092,6 +1093,7 @@ function attachCalendarEvents(){
   if(newBtn) newBtn.addEventListener('click', ()=>openEventModal(null));
   setTimeout(showBoardPopupIfNeeded, 0);
   document.querySelectorAll('[data-edit-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.editEvent)));
+  document.querySelectorAll('[data-copy-event]').forEach(b=>b.addEventListener('click', ()=>openEventModal(b.dataset.copyEvent, true)));
   document.querySelectorAll('[data-del-event]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('このイベントを削除しますか？')) return;
     DB.events = DB.events.filter(e=>e.id!==b.dataset.delEvent);
@@ -1186,8 +1188,9 @@ function attachAttendanceModalEvents(eventId){
   }));
 }
 
-function openEventModal(eventId){
-  const ev = eventId ? DB.events.find(e=>e.id===eventId) : {id:null, title:'', teamIds:DB.teams[0]?[DB.teams[0].id]:[], date:ui.selectedDate, startTime:'', endTime:'', location:'', note:''};
+function openEventModal(eventId, copyMode=false){
+  const sourceEv = eventId ? DB.events.find(e=>e.id===eventId) : null;
+  const ev = sourceEv ? {...sourceEv, id:copyMode ? null : sourceEv.id} : {id:null, title:'', teamIds:DB.teams[0]?[DB.teams[0].id]:[], date:ui.selectedDate, startTime:'', endTime:'', location:'', note:'', tentative:false};
   const selectedTeamIds = eventTeamIds(ev);
   const teamChecks = DB.teams.map(t=>`
     <label class="team-check">
@@ -1196,7 +1199,7 @@ function openEventModal(eventId){
     </label>`).join('');
   const locList = DB.locations.map(l=>`<button type="button" class="loc-list-item" data-loc-pick="${escapeHtml(l.name)}">📍 ${escapeHtml(l.name)}</button>`).join('');
   showModal(`
-    <h3>${eventId?'イベントを編集':'新しいイベント'}</h3>
+    <h3>${copyMode?'イベントをコピー':eventId?'イベントを編集':'新しいイベント'}</h3>
     <div class="event-form">
     <div class="field"><label>タイトル</label><input id="ev-title" value="${escapeHtml(ev.title)}" placeholder="例：通常練習" /></div>
     <div class="field">
@@ -1214,6 +1217,7 @@ function openEventModal(eventId){
       ${locList ? `<div class="loc-list">${locList}</div><div class="field-hint">タップすると入力欄に入ります（管理者メニューで編集できます）</div>` : ''}
     </div>
     <div class="field"><label>メモ（任意）</label><textarea id="ev-note" rows="2">${escapeHtml(ev.note||'')}</textarea></div>
+    <div class="field" style="margin-top:4px;"><button type="button" class="btn btn-outline btn-sm" id="ev-tentative" aria-pressed="${ev.tentative?'true':'false'}">${ev.tentative?'✓ ':''}仮予約</button><div class="field-hint">仮予約の予定だけカレンダーに黄色いラインが入ります</div></div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
@@ -1223,6 +1227,12 @@ function openEventModal(eventId){
   document.querySelectorAll('[data-loc-pick]').forEach(b=>b.addEventListener('click', ()=>{
     document.getElementById('ev-loc').value = b.dataset.locPick;
   }));
+  const tentativeBtn = document.getElementById('ev-tentative');
+  if(tentativeBtn) tentativeBtn.addEventListener('click', ()=>{
+    const active = tentativeBtn.getAttribute('aria-pressed') === 'true';
+    tentativeBtn.setAttribute('aria-pressed', active ? 'false' : 'true');
+    tentativeBtn.textContent = active ? '仮予約' : '✓ 仮予約';
+  });
   document.getElementById('ev-save').addEventListener('click', async ()=>{
     const title = document.getElementById('ev-title').value.trim();
     const date = document.getElementById('ev-date').value;
@@ -1233,6 +1243,7 @@ function openEventModal(eventId){
       id: ev.id || uid('e'), title, teamIds, date,
       startTime: document.getElementById('ev-start').value, endTime: document.getElementById('ev-end').value,
       location: document.getElementById('ev-loc').value.trim(), note: document.getElementById('ev-note').value.trim(),
+      tentative: document.getElementById('ev-tentative')?.getAttribute('aria-pressed') === 'true',
     };
     if(ev.id){ DB.events = DB.events.map(e=>e.id===ev.id?data:e); } else { DB.events.push(data); }
     await saveKey('events', DB.events);
