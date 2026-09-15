@@ -1201,6 +1201,7 @@ function openEventModal(eventId, copyMode=false){
   showModal(`
     <h3>${copyMode?'イベントをコピー':eventId?'イベントを編集':'新しいイベント'}</h3>
     <div class="event-form">
+    <div class="field" style="margin-top:0;margin-bottom:8px;"><button type="button" class="btn btn-outline btn-sm" id="ev-tentative" aria-pressed="${ev.tentative?'true':'false'}">${ev.tentative?'✓ ':''}仮予約</button><div class="field-hint">仮予約の予定だけカレンダーに黄色いラインが入ります</div></div>
     <div class="field"><label>タイトル</label><input id="ev-title" value="${escapeHtml(ev.title)}" placeholder="例：通常練習" /></div>
     <div class="field">
       <label>対象チーム（複数選択可）</label>
@@ -1217,7 +1218,6 @@ function openEventModal(eventId, copyMode=false){
       ${locList ? `<div class="loc-list">${locList}</div><div class="field-hint">タップすると入力欄に入ります（管理者メニューで編集できます）</div>` : ''}
     </div>
     <div class="field"><label>メモ（任意）</label><textarea id="ev-note" rows="2">${escapeHtml(ev.note||'')}</textarea></div>
-    <div class="field" style="margin-top:4px;"><button type="button" class="btn btn-outline btn-sm" id="ev-tentative" aria-pressed="${ev.tentative?'true':'false'}">${ev.tentative?'✓ ':''}仮予約</button><div class="field-hint">仮予約の予定だけカレンダーに黄色いラインが入ります</div></div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" id="modal-cancel">キャンセル</button>
