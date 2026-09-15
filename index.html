@@ -237,6 +237,15 @@
   .board-post-body{font-size:14px; line-height:1.75; white-space:pre-wrap; word-break:break-word;}
   .board-post-target{display:inline-flex; align-items:center; gap:5px; margin-top:10px; padding:4px 9px; border-radius:999px; background:var(--accent-soft); color:var(--accent); font-size:11.5px; font-weight:700;}
   .board-post-period{font-size:11px; color:var(--ink-faint); margin-top:7px;}
+  .board-post-attachment{margin-top:10px;}
+  .board-attachment-link{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--accent);font-size:12.5px;font-weight:700;text-decoration:none;}
+  .board-attachment-link:hover{border-color:var(--accent);}
+  .board-upload-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .board-upload-input{display:none;}
+  .board-upload-label{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:7px 11px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink-soft);font-size:12.5px;font-weight:700;cursor:pointer;}
+  .board-upload-label:hover{border-color:var(--accent);color:var(--accent);}
+  .board-upload-name{font-size:11.5px;color:var(--ink-faint);word-break:break-all;}
+  .board-upload-status{font-size:11.5px;color:var(--ink-faint);margin-top:6px;line-height:1.5;}
   .board-post-actions{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;}
   .board-empty{padding:42px 20px;}
   .board-compose-note{font-size:11.5px; color:var(--ink-faint); margin-top:6px; line-height:1.5;}
@@ -903,6 +912,7 @@ function showBoardPopupIfNeeded(){
       ${posts.map(p=>`
         <article class="board-popup-post">
           <div class="board-popup-post-body">${escapeHtml(p.body)}</div>
+          ${p.attachment?.url ? `<div class="board-post-attachment"><a class="board-attachment-link" href="${escapeHtml(p.attachment.url)}" target="_blank" rel="noopener noreferrer">📎資料を見る</a></div>` : ''}
           <div class="board-popup-post-meta">掲載期間：${escapeHtml(formatBoardDateTime(p.startAt))} ～ ${escapeHtml(formatBoardDateTime(p.endAt))}</div>
         </article>`).join('')}
     </section>` : '';
@@ -1263,6 +1273,48 @@ function formatBoardDateTime(value){
   if(Number.isNaN(d.getTime())) return value || '';
   return d.toLocaleString('ja-JP',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
 }
+const BOARD_CLOUDINARY_CLOUD_NAME = 'h9xlmvgz';
+const BOARD_CLOUDINARY_UPLOAD_PRESET = 'nishina_bulletin_files';
+const BOARD_ALLOWED_EXTENSIONS = ['pdf','xlsx','xls','docx','doc','pptx','ppt','csv','txt'];
+const BOARD_MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+function boardFileExtension(name){
+  const parts = String(name||'').toLowerCase().split('.');
+  return parts.length > 1 ? parts.pop() : '';
+}
+function boardValidateFile(file){
+  if(!file) return 'ファイルを選択してください';
+  const ext = boardFileExtension(file.name);
+  if(!BOARD_ALLOWED_EXTENSIONS.includes(ext)){
+    return 'PDF・Excel・Word・PowerPoint・CSV・TXTのみアップロードできます';
+  }
+  if(file.size > BOARD_MAX_FILE_SIZE){
+    return 'ファイルサイズは10MB以下にしてください';
+  }
+  return '';
+}
+async function uploadBoardAttachment(file){
+  const error = boardValidateFile(file);
+  if(error) throw new Error(error);
+  const form = new FormData();
+  form.append('file', file);
+  form.append('upload_preset', BOARD_CLOUDINARY_UPLOAD_PRESET);
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${BOARD_CLOUDINARY_CLOUD_NAME}/raw/upload`, {
+    method:'POST', body:form
+  });
+  let result = null;
+  try{ result = await response.json(); }catch(e){}
+  if(!response.ok || !result?.secure_url){
+    throw new Error(result?.error?.message || '資料ファイルのアップロードに失敗しました');
+  }
+  return {
+    url: result.secure_url,
+    name: file.name,
+    type: file.type || '',
+    size: file.size
+  };
+}
+
 function boardTargetTeamIds(post){
   return post.teamIds || (post.teamId ? [post.teamId] : []);
 }
@@ -1324,6 +1376,7 @@ function renderBoardView(){
         </div>
       </div>
       <div class="board-post-body">${escapeHtml(p.body)}</div>
+      ${p.attachment?.url ? `<div class="board-post-attachment"><a class="board-attachment-link" href="${escapeHtml(p.attachment.url)}" target="_blank" rel="noopener noreferrer">📎資料を見る</a></div>` : ''}
       <div class="board-post-period">掲載期間：${escapeHtml(formatBoardDateTime(p.startAt))} ～ ${escapeHtml(formatBoardDateTime(p.endAt))}</div>
       ${canManage ? `<div class="board-post-actions">
         <button class="btn btn-outline btn-sm" data-edit-board="${p.id}">編集</button>
@@ -1382,6 +1435,14 @@ function openBoardModal(postId){
       <label>メッセージ</label>
       <textarea id="board-body" rows="5" placeholder="みなさんへの連絡を書いてください">${escapeHtml(existing?.body||'')}</textarea>
     </div>
+    ${isAdmin() ? `<div class="field">
+      <div class="board-upload-row">
+        <label class="board-upload-label" for="board-file">📎資料ファイルをアップロード</label>
+        <input id="board-file" class="board-upload-input" type="file" accept=".pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.csv,.txt" />
+      </div>
+      <div id="board-upload-name" class="board-upload-name">${existing?.attachment?.name ? `現在の資料：${escapeHtml(existing.attachment.name)}` : ''}</div>
+      <div id="board-upload-status" class="board-upload-status">PDF・Excel・Word・PowerPoint・CSV・TXT（10MB以下）</div>
+    </div>` : ''}
     <div class="board-datetime-grid">
       <div class="field"><label>掲載開始</label><input id="board-start" type="datetime-local" value="${escapeHtml(defaultStart)}" /></div>
       <div class="field"><label>掲載終了</label><input id="board-end" type="datetime-local" value="${escapeHtml(defaultEnd)}" /></div>
@@ -1398,7 +1459,38 @@ function openBoardModal(postId){
       <button class="btn btn-primary" id="board-save">${existing?'更新する':'投稿する'}</button>
     </div>
   `);
+  let boardAttachment = existing?.attachment || null;
+  let boardUploading = false;
+  const boardFileEl = document.getElementById('board-file');
+  const boardFileNameEl = document.getElementById('board-upload-name');
+  const boardUploadStatusEl = document.getElementById('board-upload-status');
+  if(boardFileEl){
+    boardFileEl.addEventListener('change', async ()=>{
+      const file = boardFileEl.files?.[0];
+      if(!file) return;
+      const error = boardValidateFile(file);
+      if(error){
+        boardFileEl.value='';
+        if(boardUploadStatusEl) boardUploadStatusEl.textContent=error;
+        return;
+      }
+      if(boardFileNameEl) boardFileNameEl.textContent=`選択：${file.name}`;
+      boardUploading = true;
+      if(boardUploadStatusEl) boardUploadStatusEl.textContent='アップロード中…';
+      try{
+        boardAttachment = await uploadBoardAttachment(file);
+        if(boardUploadStatusEl) boardUploadStatusEl.textContent='アップロード完了';
+      }catch(err){
+        boardAttachment = existing?.attachment || null;
+        boardFileEl.value='';
+        if(boardUploadStatusEl) boardUploadStatusEl.textContent=err?.message || 'アップロードに失敗しました';
+      }finally{
+        boardUploading = false;
+      }
+    });
+  }
   document.getElementById('board-save').addEventListener('click', async ()=>{
+    if(boardUploading){ toast('資料ファイルのアップロードが完了するまでお待ちください'); return; }
     const body = document.getElementById('board-body').value.trim();
     const startAt = document.getElementById('board-start').value;
     const endAt = document.getElementById('board-end').value;
@@ -1416,6 +1508,7 @@ function openBoardModal(postId){
       authorName: existing?.authorName || currentAccount()?.name || session.name || 'ユーザー',
       body, teamIds, boardPopup,
       startAt, endAt,
+      ...(boardAttachment?.url ? {attachment: boardAttachment} : {}),
       createdAt: existing?.createdAt || timestamp,
       updatedAt: timestamp
     };
