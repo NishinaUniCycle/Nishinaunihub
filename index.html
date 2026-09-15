@@ -1441,7 +1441,7 @@ function openBoardModal(postId){
         <input id="board-file" class="board-upload-input" type="file" accept=".pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.csv,.txt" />
       </div>
       <div id="board-upload-name" class="board-upload-name">${existing?.attachment?.name ? `現在の資料：${escapeHtml(existing.attachment.name)}` : ''}</div>
-      <div id="board-upload-status" class="board-upload-status">PDF・Excel・Word・PowerPoint・CSV・TXT（10MB以下）</div>
+      <div id="board-upload-status" class="board-upload-status">PDF・Excel・Word・PP・CSV・TXT（10MB以下のみ）</div>
     </div>` : ''}
     <div class="board-datetime-grid">
       <div class="field"><label>掲載開始</label><input id="board-start" type="datetime-local" value="${escapeHtml(defaultStart)}" /></div>
