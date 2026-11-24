@@ -1087,7 +1087,7 @@ function renderEventRow(e){
   </div>`;
 }
 
-function monthlyCalendarPrintHtml(year, month){
+function monthlyCalendarPrintHtml(year, month, returnUrl=location.href){
   const first = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   // 画面側の設定に合わせて月曜始まり／日曜始まりを切り替える
@@ -1177,9 +1177,11 @@ function monthlyCalendarPrintHtml(year, month){
     .note{font-size:5.2pt;line-height:1.15;margin-top:.35mm;overflow-wrap:anywhere;white-space:normal;color:#465365;border-top:.2mm dotted #c5cdd6;padding-top:.35mm}
     .day:not(.dense) .event{padding:calc(.55mm * var(--fit)) calc(.7mm * var(--fit))}.day:not(.dense) .event-head{font-size:calc(6.2pt * var(--fit));line-height:1.05}.day:not(.dense) .event-head em{font-size:calc(4.8pt * var(--fit))}.day:not(.dense) .time{font-size:calc(5.5pt * var(--fit));line-height:1.02}.day:not(.dense) .team,.day:not(.dense) .location,.day:not(.dense) .note{font-size:calc(4.9pt * var(--fit));line-height:1.02}.day:not(.dense) .event-subline{gap:calc(1mm * var(--fit));margin-top:calc(.3mm * var(--fit))}.day:not(.dense) .teams{gap:calc(.25mm * var(--fit)) calc(.7mm * var(--fit))}.day:not(.dense) .note{margin-top:calc(.3mm * var(--fit));padding-top:calc(.3mm * var(--fit))}
     .footer{font-size:5pt;color:#778294;text-align:right;margin-top:1mm}
-    @media screen{body{padding:6mm;background:#fff}.calendar{height:174mm}.preview-hint{font-size:10px;color:#667085;margin-bottom:5px}}
-    @media print{html,body{height:198mm;overflow:hidden}.preview-hint{display:none}.calendar{height:171mm!important}.footer{position:absolute;right:0;bottom:0;margin:0;line-height:1.1}}
+    .screen-toolbar{display:none}
+    @media screen{body{padding:6mm;background:#fff}.calendar{height:174mm}.preview-hint{font-size:10px;color:#667085;margin-bottom:5px}.screen-toolbar{display:flex;position:sticky;top:0;z-index:20;justify-content:flex-end;gap:8px;margin:-6mm -6mm 8px;padding:8px 10px;background:#fff;border-bottom:1px solid #d7dee8}.screen-toolbar a{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px;border-radius:8px;background:#263445;color:#fff;text-decoration:none;font-size:14px;font-weight:700}}
+    @media print{html,body{height:198mm;overflow:hidden}.screen-toolbar,.preview-hint{display:none}.calendar{height:171mm!important}.footer{position:absolute;right:0;bottom:0;margin:0;line-height:1.1}}
   </style></head><body>
+    <div class="screen-toolbar"><a href="${escapeHtml(returnUrl)}">← アプリに戻る</a></div>
     <div class="preview-hint">印刷画面で「PDFに保存」を選択してください。</div>
     <div class="top"><h1>${year}年 ${month+1}月　練習予定表</h1><div class="club">西奈一輪車クラブ</div></div>
     <div class="weekdays">${(mondayStart ? ['月','火','水','木','金','土','日'] : ['日','月','火','水','木','金','土']).map(d=>`<div class="weekday">${d}</div>`).join('')}</div>
@@ -1217,7 +1219,7 @@ function exportMonthlyCalendarPdf(){
   const printWindow = window.open('', '_blank');
   if(!printWindow){ toast('ポップアップがブロックされました。許可してから再度お試しください'); return; }
   printWindow.document.open();
-  printWindow.document.write(monthlyCalendarPrintHtml(ui.calYear, ui.calMonth));
+  printWindow.document.write(monthlyCalendarPrintHtml(ui.calYear, ui.calMonth, location.href));
   printWindow.document.close();
 }
 
