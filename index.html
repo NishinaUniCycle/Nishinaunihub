@@ -14,6 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
 <style>
   :root{
     --bg:#F6F5F0;
@@ -1011,7 +1012,7 @@ function renderCalendarView(){
       <h2>${wheelSVG(22,false)} 練習カレンダー</h2>
       <div class="calendar-actions">
         <button class="btn btn-secondary btn-sm" id="cal-week-start" title="週の開始曜日を切り替えます">切替</button>
-        <button class="btn btn-outline btn-sm" id="btn-export-month-pdf" title="表示中の月をA4横向きPDFでダウンロード">📥 月間予定表をダウンロード</button>
+        <button class="btn btn-outline btn-sm" id="btn-export-month-pdf" title="表示中の月の予定表PDFを出力">📅 月間予定表</button>
         ${isAdmin() ? `<button class="btn btn-primary btn-sm" id="btn-new-event">＋ イベントを追加</button>` : ''}
       </div>
     </div>
@@ -1087,199 +1088,167 @@ function renderEventRow(e){
   </div>`;
 }
 
-function monthlyCalendarPrintHtml(year, month, returnUrl=location.href){
-  const first = new Date(year, month, 1);
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  // 画面側の設定に合わせて月曜始まり／日曜始まりを切り替える
-  const mondayStart = !!ui.weekStartsMonday;
-  const startDow = mondayStart ? (first.getDay() + 6) % 7 : first.getDay();
-  const weekCount = Math.ceil((startDow + daysInMonth) / 7);
-  const cells = [];
-  for(let i=0; i<weekCount*7; i++){
-    const day = i - startDow + 1;
-    const inMonth = day >= 1 && day <= daysInMonth;
-    const dateObj = new Date(year, month, day);
-    const dateStr = fmtDate(dateObj);
-    const dayEvents = inMonth ? eventsOn(dateStr) : [];
-    const visibleEvents = dayEvents.slice(0,4);
-    const eventHtml = visibleEvents.map(e=>{
-      const ids = eventTeamIds(e);
-      const teams = ids.map(id=>teamById(id)).filter(Boolean);
-      const teamHtml = teams.length
-        ? teams.map(t=>`<span class="team" style="--team:${teamColor(t.id)}"><i></i>${escapeHtml(t.name)}</span>`).join('')
-        : '<span class="team all"><i></i>全体</span>';
-      const time = e.startTime
-        ? `${escapeHtml(e.startTime)}${e.endTime ? `～${escapeHtml(e.endTime)}` : ''}`
-        : (e.endTime ? `～${escapeHtml(e.endTime)}` : '時間未定');
-      return `<article class="event ${e.tentative?'tentative':''}">
-        <div class="event-head"><b>${escapeHtml(e.title||'予定')}</b><span class="event-meta">${e.tentative?'<em>仮予約</em>':''}<span class="time">${time}</span></span></div>
-        <div class="teams-line"><div class="teams">${teamHtml}</div></div>
-        <div class="location">📍 ${escapeHtml(e.location||'場所未定')}</div>
-        ${e.note ? `<div class="note">${escapeHtml(e.note).replace(/\n/g,' ')}</div>` : '<div class="note empty-note"></div>'}
-      </article>`;
-    }).join('');
-    const dow = i % 7;
-    const textLoad = dayEvents.reduce((sum,e)=>sum + String(e.title||'').length + String(e.location||'').length + String(e.note||'').length + 24, 0);
-    const density = dayEvents.length >= 3 || textLoad > 170 ? ' compact dense' : dayEvents.length >= 2 ? ' compact' : '';
-    cells.push(`<section class="day ${inMonth?'':'outside'} dow-${dow}${density}">
-      <header><span class="date">${inMonth?day:''}</span>${inMonth && dayEvents.length ? `<small>${dayEvents.length}件</small>` : ''}</header>
-      <div class="events">${eventHtml}${dayEvents.length>4 ? `<div class="more-events">ほか ${dayEvents.length-4} 件</div>` : ''}</div>
-    </section>`);
+function drawMonthlyCalendarCanvas(year, month){
+  // A4横向きの同一レイアウトをCanvasに描き、PDFの1ページとして出力する。
+  // 10px/mm（約254dpi）で描画し、iPhone/PCの画面サイズや印刷設定に依存させない。
+  const PAGE_W=297, PAGE_H=210, SCALE=10;
+  const canvas=document.createElement('canvas');
+  canvas.width=PAGE_W*SCALE; canvas.height=PAGE_H*SCALE;
+  const ctx=canvas.getContext('2d',{alpha:false});
+  if(!ctx) throw new Error('PDF描画用のCanvasを作成できませんでした');
+  ctx.scale(SCALE,SCALE);
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,PAGE_W,PAGE_H);
+  ctx.textBaseline='alphabetic'; ctx.lineJoin='round'; ctx.lineCap='round';
+
+  const fontFamily='"Noto Sans JP","Yu Gothic",Meiryo,sans-serif';
+  const fontPx=pt=>pt*25.4/72;
+  const setFont=(weight,pt)=>{ctx.font=`${weight} ${fontPx(pt)}px ${fontFamily}`;};
+  const fitText=(value,maxWidth,weight,pt)=>{
+    let text=String(value==null?'':value);
+    setFont(weight,pt);
+    if(ctx.measureText(text).width<=maxWidth) return text;
+    const ellipsis='…';
+    while(text.length && ctx.measureText(text+ellipsis).width>maxWidth) text=text.slice(0,-1);
+    return text ? text+ellipsis : ellipsis;
+  };
+  const drawText=(value,x,y,maxWidth,weight,pt,color,align='left')=>{
+    setFont(weight,pt); ctx.fillStyle=color; ctx.textAlign=align;
+    const text=fitText(value,maxWidth,weight,pt);
+    ctx.fillText(text,x,y,maxWidth);
+    ctx.textAlign='left';
+  };
+  const roundRect=(x,y,w,h,r,fill,stroke)=>{
+    const radius=Math.min(r,w/2,h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+radius,y); ctx.lineTo(x+w-radius,y); ctx.quadraticCurveTo(x+w,y,x+w,y+radius);
+    ctx.lineTo(x+w,y+h-radius); ctx.quadraticCurveTo(x+w,y+h,x+w-radius,y+h);
+    ctx.lineTo(x+radius,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-radius);
+    ctx.lineTo(x,y+radius); ctx.quadraticCurveTo(x,y,x+radius,y); ctx.closePath();
+    if(fill){ctx.fillStyle=fill;ctx.fill();}
+    if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=.22;ctx.stroke();}
+  };
+  const colorFor=(id)=>{
+    const c=teamColor(id)||'#8993a4';
+    return /^#[0-9a-f]{6}$/i.test(c)?c:'#8993a4';
+  };
+
+  // ページ見出し
+  drawText(`${year}年 ${month+1}月　月間予定表`,5.5,11.2,190,900,15,'#202938');
+  drawText('西奈一輪車クラブ',291.5,10.8,75,700,7.5,'#536174','right');
+  ctx.strokeStyle='#263445'; ctx.lineWidth=.35; ctx.beginPath();
+  ctx.moveTo(5.5,14); ctx.lineTo(291.5,14); ctx.stroke();
+
+  const mondayStart=!!ui.weekStartsMonday;
+  const dows=mondayStart?['月','火','水','木','金','土','日']:['日','月','火','水','木','金','土'];
+  const first=new Date(year,month,1);
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const startDow=mondayStart?(first.getDay()+6)%7:first.getDay();
+  const weekCount=Math.ceil((startDow+daysInMonth)/7);
+  const left=5.5, top=17, gap=.7, contentW=286, dowH=4.7;
+  const colW=(contentW-gap*6)/7;
+  const calendarTop=top+dowH+1;
+  const calendarH=PAGE_H-5.5-calendarTop-1.8;
+  const rowH=(calendarH-gap*(weekCount-1))/weekCount;
+
+  dows.forEach((label,i)=>{
+    const x=left+i*(colW+gap);
+    const bg=i===0?'#f8e9e9':i===6?'#e9f0fa':'#e9eef4';
+    const fg=i===0?'#b33b43':i===6?'#315f9b':'#39475a';
+    roundRect(x,top,colW,dowH,.7,bg,null);
+    drawText(label,x,top+3.25,colW,700,6.2,fg,'center');
+  });
+
+  const today=fmtDate(new Date());
+  for(let row=0;row<weekCount;row++){
+    for(let col=0;col<7;col++){
+      const cellIndex=row*7+col;
+      const day=cellIndex-startDow+1;
+      if(day<1||day>daysInMonth) continue;
+      const x=left+col*(colW+gap);
+      const y=calendarTop+row*(rowH+gap);
+      const dateStr=fmtDate(new Date(year,month,day));
+      const dayEvents=eventsOn(dateStr);
+      const isToday=dateStr===today;
+      roundRect(x,y,colW,rowH,.65,isToday?'#f4f7ff':'#ffffff',isToday?'#5275d8':'#aeb8c4');
+
+      const dateColor=col===0?'#b33b43':col===6?'#315f9b':'#263445';
+      drawText(String(day),x+1.3,y+3.15,10,800,7.2,dateColor);
+      if(dayEvents.length) drawText(`${dayEvents.length}件`,x+colW-1.2,y+3.0,14,500,4.5,'#758195','right');
+
+      if(!dayEvents.length) continue;
+      const listTop=y+4.0;
+      const listBottom=y+rowH-.8;
+      const listH=Math.max(1,listBottom-listTop);
+      const eventGap=dayEvents.length>=5?.22:.38;
+      const eventH=(listH-eventGap*(dayEvents.length-1))/dayEvents.length;
+      dayEvents.forEach((e,index)=>{
+        const ey=listTop+index*(eventH+eventGap);
+        const ids=eventTeamIds(e);
+        const teams=ids.map(id=>teamById(id)).filter(Boolean);
+        const accent=teams.length?colorFor(teams[0].id):'#8993a4';
+        roundRect(x+.65,ey,colW-1.3,eventH,.45,'#f3f5f8',null);
+        ctx.fillStyle=accent;
+        ctx.fillRect(x+.65,ey,.75,eventH);
+
+        const innerX=x+1.8, innerW=colW-3.4;
+        const note=String(e.note||'').trim();
+        const lineCount=note?4:3;
+        const pt=Math.max(2.35,Math.min(note?4.25:5.2,eventH*(note?.69:.88)));
+        const lineStep=eventH/(note?4.05:3.05);
+        const firstBase=ey+Math.max(.58,(eventH-lineStep*(lineCount-.8))/2);
+        const title=String(e.title||'予定')+(e.tentative?'（仮）':'');
+        const time=e.startTime
+          ? `${e.startTime}${e.endTime?'～'+e.endTime:''}`
+          : (e.endTime?'～'+e.endTime:'時間未定');
+        setFont(800,pt);
+        setFont(700,Math.max(2.3,pt*.91));
+        const timeWidth=Math.min(innerW*.43,ctx.measureText(time).width+.2);
+        drawText(title,innerX,firstBase,Math.max(1,innerW-timeWidth-.8),800,pt,'#202938');
+        drawText(time,x+colW-.95,firstBase,timeWidth,700,Math.max(2.3,pt*.91),'#344054','right');
+
+        const teamName=teams.length?teams.map(t=>t.name).join('・'):'全体';
+        const dotY=firstBase+lineStep;
+        ctx.fillStyle=accent; ctx.beginPath();
+        ctx.arc(innerX+.35,dotY-.22,.27,0,Math.PI*2); ctx.fill();
+        drawText(teamName,innerX+.9,dotY,innerW-.9,500,Math.max(2.2,pt*.86),'#475467');
+
+        const location=e.location||'場所未定';
+        drawText(location,innerX,dotY+lineStep,innerW,400,Math.max(2.15,pt*.84),'#667085');
+        if(note) drawText(note,innerX,dotY+lineStep*2,innerW,400,Math.max(2.05,pt*.76),'#7b8492');
+      });
+    }
   }
-  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${year}年${month+1}月 練習予定表</title>
-  <style>
-    @page{size:A4 landscape;margin:6mm}
-    *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-    html,body{margin:0;padding:0;font-family:"Noto Sans JP","Yu Gothic",Meiryo,sans-serif;color:#202938}
-    body{width:100%;}
-    .top{height:14mm;display:flex;align-items:center;justify-content:space-between;border-bottom:1.2px solid #263445;margin-bottom:2mm}
-    h1{font-size:17pt;letter-spacing:.08em;margin:0;font-weight:800}
-    .club{font-size:8pt;color:#536174;font-weight:700}
-    .team i{display:inline-block;width:1.3mm;height:1.3mm;border-radius:50%;background:var(--team,#8993a4);flex:none}
-    .weekdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.7mm;margin-bottom:.7mm}
-    .weekday{text-align:center;font-size:7pt;font-weight:800;padding:1mm 0;background:#e9eef4;border-radius:1mm}
-    .weekday:first-child{color:#b33b43;background:#f8e9e9}.weekday:last-child{color:#315f9b;background:#e9f0fa}
-    .calendar{height:174mm;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:repeat(${weekCount},minmax(0,1fr));gap:.7mm}
-    .day{--fit:1;border:.35mm solid #aeb8c4;border-radius:1mm;min-width:0;min-height:0;padding:1mm;overflow:hidden;background:#fff;display:flex;flex-direction:column}
-    .day.compact .events{gap:.25mm}.day.compact .event{padding:.35mm .5mm}
-    .day.dense .events{gap:.25mm}
-    .day.dense .event{flex:1 1 0;min-height:0;display:flex;flex-direction:column;justify-content:space-around;overflow:hidden;padding:.25mm .45mm;border-left-width:.65mm}
-    .day.dense .event-head{font-size:4.4pt;line-height:1;min-width:0;white-space:nowrap;overflow:hidden}
-    .day.dense .event-head>b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
-    .day.dense .event-meta{gap:.4mm}
-    .day.dense .time{font-size:4.1pt;line-height:1;}
-    .day.dense .event-head em{font-size:3.7pt;padding:0 .4mm}
-    .day.dense .teams-line,.day.dense .location,.day.dense .note{min-width:0;width:100%;height:1.35mm;max-height:1.35mm;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:4.1pt;line-height:1.05;margin:0;padding:0;border:0}
-    .day.dense .teams{display:flex;flex-wrap:nowrap;gap:.5mm;min-width:0;overflow:hidden;white-space:nowrap}
-    .day.dense .team{font-size:4.1pt;line-height:1;white-space:nowrap;flex:none}
-    .day.dense .team i{width:1mm;height:1mm}
-    .day.dense .note{color:#465365}
-    .day.dense .empty-note{display:none}
-    .more-events{flex:none;text-align:right;font-size:4pt;line-height:1;color:#667085;padding-top:.1mm}
-    .day.outside{background:#f5f6f8;color:#b9c0c9}
-    .day.dow-0 header{color:#b33b43}.day.dow-6 header{color:#315f9b}
-    .day header{height:4mm;display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:8pt;line-height:1}
-    .day header small{font-size:5.5pt;color:#758195;font-weight:600}
-    .events{display:flex;flex-direction:column;gap:.7mm;flex:1;min-height:0;overflow:hidden}
-    
-    .event{border-left:1.1mm solid #8392a5;background:#f2f5f8;border-radius:.6mm;padding:.8mm 1mm;min-width:0;break-inside:avoid}
-    .event-head{display:flex;align-items:center;justify-content:space-between;gap:1mm;font-size:6.5pt;line-height:1.12}
-    .event-head>b{font-weight:800;overflow-wrap:anywhere;min-width:0;flex:1}
-    .event-meta{display:flex;align-items:center;gap:.8mm;flex:none;white-space:nowrap}
-    .event-head em{font-style:normal;color:#8a5a00;background:#fff0c7;border-radius:1mm;padding:.2mm .8mm;font-size:5pt;white-space:nowrap;flex:none}
-    .time{font-size:5.8pt;font-weight:800;line-height:1.1;white-space:nowrap}
-    .event-subline{display:flex;align-items:flex-start;gap:1mm;min-width:0;margin-top:.35mm}
-    .teams{display:flex;flex-wrap:wrap;gap:.3mm .8mm;min-width:0;flex:0 1 auto}
-    .team{display:inline-flex;align-items:center;gap:.5mm;font-size:5.2pt;line-height:1.1;white-space:nowrap;color:#344054}
-    .team i{width:1.5mm;height:1.5mm;background:var(--team)}
-    .team.all i{background:#8993a4}
-    .location{font-size:5.2pt;line-height:1.1;min-width:0;flex:1;overflow-wrap:anywhere;white-space:normal}
-    .note{font-size:5.2pt;line-height:1.15;margin-top:.35mm;overflow-wrap:anywhere;white-space:normal;color:#465365;border-top:.2mm dotted #c5cdd6;padding-top:.35mm}
-    .day:not(.dense) .event{padding:calc(.55mm * var(--fit)) calc(.7mm * var(--fit))}.day:not(.dense) .event-head{font-size:calc(6.2pt * var(--fit));line-height:1.05}.day:not(.dense) .event-head em{font-size:calc(4.8pt * var(--fit))}.day:not(.dense) .time{font-size:calc(5.5pt * var(--fit));line-height:1.02}.day:not(.dense) .team,.day:not(.dense) .location,.day:not(.dense) .note{font-size:calc(4.9pt * var(--fit));line-height:1.02}.day:not(.dense) .event-subline{gap:calc(1mm * var(--fit));margin-top:calc(.3mm * var(--fit))}.day:not(.dense) .teams{gap:calc(.25mm * var(--fit)) calc(.7mm * var(--fit))}.day:not(.dense) .note{margin-top:calc(.3mm * var(--fit));padding-top:calc(.3mm * var(--fit))}
-    .footer{font-size:5pt;color:#778294;text-align:right;margin-top:1mm}
-    .screen-toolbar{display:none}
-    .pdf-page{width:285mm;height:198mm;padding:0;margin:0 auto;background:#fff;overflow:hidden}
-    @media screen{body{padding:6mm;background:#fff}.pdf-page{width:285mm;height:198mm}.calendar{height:174mm}.screen-toolbar{display:flex;position:sticky;top:0;z-index:20;justify-content:space-between;gap:8px;margin:-6mm -6mm 8px;padding:8px 10px;background:#fff;border-bottom:1px solid #d7dee8}.screen-toolbar button{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px;border:0;border-radius:8px;background:#263445;color:#fff;font-size:14px;font-weight:700}.screen-toolbar #save-pdf{background:#176b48}}
-    @media print{html,body{height:198mm;overflow:hidden}.screen-toolbar{display:none}.calendar{height:171mm!important}}
-  </style></head><body>
-    <div class="screen-toolbar">
-      <button type="button" id="return-app" data-return-url="${escapeHtml(returnUrl)}">← アプリに戻る</button>
-      <button type="button" id="save-pdf" disabled>PDFを作成中…</button>
-    </div>
-    <main class="pdf-page">
-    <div class="top"><h1>${year}年 ${month+1}月　練習予定表</h1><div class="club">西奈一輪車クラブ</div></div>
-    <div class="weekdays">${(mondayStart ? ['月','火','水','木','金','土','日'] : ['日','月','火','水','木','金','土']).map(d=>`<div class="weekday">${d}</div>`).join('')}</div>
-    <div class="calendar">${cells.join('')}</div>
-    </main>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"><\/script>
-    <script>
-    function fitCalendarDays(){
-      document.querySelectorAll('.day:not(.outside)').forEach(day=>{
-        const head=day.querySelector('header');
-        const events=day.querySelector('.events');
-        if(!head||!events||!events.children.length)return;
-        const style=getComputedStyle(day);
-        const available=day.clientHeight-head.offsetHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom)-1;
-        events.style.maxHeight=Math.max(0,available)+'px';
-        let fit=1;
-        events.style.setProperty('--fit',fit);
-        day.style.setProperty('--fit',fit);
-        while(events.scrollHeight>events.clientHeight+1 && fit>0.50 && !day.classList.contains('dense')){
-          fit=Math.max(0.50,fit-0.04);
-          day.style.setProperty('--fit',fit.toFixed(2));
-        }
-        if(events.scrollHeight>events.clientHeight+1){
-          day.classList.add('content-overflow');
-          day.title='予定の情報量が多く、1ページ内に完全に収まらない可能性があります';
-        }
-      });
-    }
-    let generatedPdfBlob=null;
-    const savePdfButton=document.getElementById('save-pdf');
-    const pdfFileName=${JSON.stringify(`${year}年${String(month+1).padStart(2,'0')}月_練習予定表.pdf`)};
-    async function createMonthlyPdf(){
-      fitCalendarDays();
-      if(!window.html2pdf) throw new Error('PDF作成ライブラリを読み込めませんでした。通信環境を確認してください。');
-      const options={
-        margin:0,
-        filename:pdfFileName,
-        image:{type:'jpeg',quality:0.98},
-        html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:1122,windowHeight:780,scrollX:0,scrollY:0},
-        jsPDF:{unit:'mm',format:'a4',orientation:'landscape'},
-        pagebreak:{mode:['css','legacy']}
-      };
-      generatedPdfBlob=await window.html2pdf().set(options).from(document.querySelector('.pdf-page')).outputPdf('blob');
-      savePdfButton.disabled=false;
-      savePdfButton.textContent='📥 PDFを保存・共有';
-    }
-    window.addEventListener('load',()=>{
-      fitCalendarDays();
-      createMonthlyPdf().catch(error=>{
-        savePdfButton.disabled=false;
-        savePdfButton.textContent='PDF作成失敗（再試行）';
-        savePdfButton.title=error && error.message ? error.message : 'PDFの作成に失敗しました';
-      });
-    });
-    savePdfButton.addEventListener('click',async()=>{
-      if(!generatedPdfBlob){
-        try{await createMonthlyPdf();}catch(error){alert(error.message);return;}
-      }
-      const file=new File([generatedPdfBlob],pdfFileName,{type:'application/pdf'});
-      try{
-        if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-          await navigator.share({files:[file],title:pdfFileName});
-          return;
-        }
-      }catch(error){
-        if(error && error.name==='AbortError') return;
-      }
-      const url=URL.createObjectURL(generatedPdfBlob);
-      const a=document.createElement('a');a.href=url;a.download=pdfFileName;a.style.display='none';
-      document.body.appendChild(a);a.click();a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),60000);
-    });
-    document.getElementById('return-app').addEventListener('click',()=>{
-      const target=document.getElementById('return-app').dataset.returnUrl;
-      try{
-        if(window.opener && !window.opener.closed){
-          window.opener.focus();
-          window.close();
-          return;
-        }
-      }catch(e){}
-      if(target){ window.location.replace(target); }
-      else if(history.length>1){ history.back(); }
-    });
-    <\/script>
-  </body></html>`;
+  drawText('西奈一輪車クラブ',291.5,207.2,90,500,4.2,'#98a2b3','right');
+  return canvas;
 }
 
 function exportMonthlyCalendarPdf(){
-  const printWindow = window.open('', '_blank');
-  if(!printWindow){ toast('ポップアップがブロックされました。許可してから再度お試しください'); return; }
-  printWindow.document.open();
-  printWindow.document.write(monthlyCalendarPrintHtml(ui.calYear, ui.calMonth, location.href));
-  printWindow.document.close();
+  const button=document.getElementById('btn-export-month-pdf');
+  const originalLabel=button?button.textContent:'📅 月間予定表';
+  try{
+    const JsPDF=window.jspdf&&window.jspdf.jsPDF;
+    if(!JsPDF) throw new Error('PDFライブラリを読み込めませんでした。ページを再読み込みしてお試しください。');
+    if(button){button.disabled=true;button.textContent='PDF作成中…';}
+
+    const canvas=drawMonthlyCalendarCanvas(ui.calYear,ui.calMonth);
+    const imageData=canvas.toDataURL('image/jpeg',.96);
+    const pdf=new JsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});
+    pdf.addImage(imageData,'JPEG',0,0,297,210,undefined,'FAST');
+    const blob=pdf.output('blob');
+    const fileName=`${ui.calYear}年${String(ui.calMonth+1).padStart(2,'0')}月_練習予定表.pdf`;
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=url; link.download=fileName; link.style.display='none';
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    if(typeof toast==='function') toast('月間予定表PDFを作成しました');
+  }catch(error){
+    console.error('月間予定表PDFの作成に失敗しました',error);
+    if(typeof toast==='function') toast(error&&error.message?error.message:'PDFの作成に失敗しました');
+    else alert(error&&error.message?error.message:'PDFの作成に失敗しました');
+  }finally{
+    if(button){button.disabled=false;button.textContent=originalLabel;}
+  }
 }
 
 function attachCalendarEvents(){
