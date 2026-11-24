@@ -1011,7 +1011,7 @@ function renderCalendarView(){
       <h2>${wheelSVG(22,false)} 練習カレンダー</h2>
       <div class="calendar-actions">
         <button class="btn btn-secondary btn-sm" id="cal-week-start" title="週の開始曜日を切り替えます">切替</button>
-        <button class="btn btn-outline btn-sm" id="btn-export-month-pdf" title="表示中の月をA4横向きで印刷・PDF保存">📄 月間予定表PDF</button>
+        <button class="btn btn-outline btn-sm" id="btn-export-month-pdf" title="表示中の月をA4横向きPDFでダウンロード">📥 月間予定表をダウンロード</button>
         ${isAdmin() ? `<button class="btn btn-primary btn-sm" id="btn-new-event">＋ イベントを追加</button>` : ''}
       </div>
     </div>
@@ -1178,16 +1178,20 @@ function monthlyCalendarPrintHtml(year, month, returnUrl=location.href){
     .day:not(.dense) .event{padding:calc(.55mm * var(--fit)) calc(.7mm * var(--fit))}.day:not(.dense) .event-head{font-size:calc(6.2pt * var(--fit));line-height:1.05}.day:not(.dense) .event-head em{font-size:calc(4.8pt * var(--fit))}.day:not(.dense) .time{font-size:calc(5.5pt * var(--fit));line-height:1.02}.day:not(.dense) .team,.day:not(.dense) .location,.day:not(.dense) .note{font-size:calc(4.9pt * var(--fit));line-height:1.02}.day:not(.dense) .event-subline{gap:calc(1mm * var(--fit));margin-top:calc(.3mm * var(--fit))}.day:not(.dense) .teams{gap:calc(.25mm * var(--fit)) calc(.7mm * var(--fit))}.day:not(.dense) .note{margin-top:calc(.3mm * var(--fit));padding-top:calc(.3mm * var(--fit))}
     .footer{font-size:5pt;color:#778294;text-align:right;margin-top:1mm}
     .screen-toolbar{display:none}
-    @media screen{body{padding:6mm;background:#fff}.calendar{height:174mm}.screen-toolbar{display:flex;position:sticky;top:0;z-index:20;justify-content:space-between;gap:8px;margin:-6mm -6mm 8px;padding:8px 10px;background:#fff;border-bottom:1px solid #d7dee8}.screen-toolbar button{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px;border:0;border-radius:8px;background:#263445;color:#fff;font-size:14px;font-weight:700}.screen-toolbar #print-month{background:#176b48}}
+    .pdf-page{width:285mm;height:198mm;padding:0;margin:0 auto;background:#fff;overflow:hidden}
+    @media screen{body{padding:6mm;background:#fff}.pdf-page{width:285mm;height:198mm}.calendar{height:174mm}.screen-toolbar{display:flex;position:sticky;top:0;z-index:20;justify-content:space-between;gap:8px;margin:-6mm -6mm 8px;padding:8px 10px;background:#fff;border-bottom:1px solid #d7dee8}.screen-toolbar button{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px;border:0;border-radius:8px;background:#263445;color:#fff;font-size:14px;font-weight:700}.screen-toolbar #save-pdf{background:#176b48}}
     @media print{html,body{height:198mm;overflow:hidden}.screen-toolbar{display:none}.calendar{height:171mm!important}}
   </style></head><body>
     <div class="screen-toolbar">
       <button type="button" id="return-app" data-return-url="${escapeHtml(returnUrl)}">← アプリに戻る</button>
-      <button type="button" id="print-month">印刷</button>
+      <button type="button" id="save-pdf" disabled>PDFを作成中…</button>
     </div>
+    <main class="pdf-page">
     <div class="top"><h1>${year}年 ${month+1}月　練習予定表</h1><div class="club">西奈一輪車クラブ</div></div>
     <div class="weekdays">${(mondayStart ? ['月','火','水','木','金','土','日'] : ['日','月','火','水','木','金','土']).map(d=>`<div class="weekday">${d}</div>`).join('')}</div>
     <div class="calendar">${cells.join('')}</div>
+    </main>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"><\/script>
     <script>
     function fitCalendarDays(){
       document.querySelectorAll('.day:not(.outside)').forEach(day=>{
@@ -1210,11 +1214,49 @@ function monthlyCalendarPrintHtml(year, month, returnUrl=location.href){
         }
       });
     }
-    window.addEventListener('load',fitCalendarDays);
-    window.addEventListener('beforeprint',fitCalendarDays);
-    document.getElementById('print-month').addEventListener('click',()=>{
+    let generatedPdfBlob=null;
+    const savePdfButton=document.getElementById('save-pdf');
+    const pdfFileName=year+'年'+String(month+1).padStart(2,'0')+'月_練習予定表.pdf';
+    async function createMonthlyPdf(){
       fitCalendarDays();
-      window.print();
+      if(!window.html2pdf) throw new Error('PDF作成ライブラリを読み込めませんでした。通信環境を確認してください。');
+      const options={
+        margin:0,
+        filename:pdfFileName,
+        image:{type:'jpeg',quality:0.98},
+        html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:1122,windowHeight:780,scrollX:0,scrollY:0},
+        jsPDF:{unit:'mm',format:'a4',orientation:'landscape'},
+        pagebreak:{mode:['css','legacy']}
+      };
+      generatedPdfBlob=await window.html2pdf().set(options).from(document.querySelector('.pdf-page')).outputPdf('blob');
+      savePdfButton.disabled=false;
+      savePdfButton.textContent='📥 PDFを保存・共有';
+    }
+    window.addEventListener('load',()=>{
+      fitCalendarDays();
+      createMonthlyPdf().catch(error=>{
+        savePdfButton.disabled=false;
+        savePdfButton.textContent='PDF作成を再試行';
+        savePdfButton.title=error.message;
+      });
+    });
+    savePdfButton.addEventListener('click',async()=>{
+      if(!generatedPdfBlob){
+        try{await createMonthlyPdf();}catch(error){alert(error.message);return;}
+      }
+      const file=new File([generatedPdfBlob],pdfFileName,{type:'application/pdf'});
+      try{
+        if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+          await navigator.share({files:[file],title:pdfFileName});
+          return;
+        }
+      }catch(error){
+        if(error && error.name==='AbortError') return;
+      }
+      const url=URL.createObjectURL(generatedPdfBlob);
+      const a=document.createElement('a');a.href=url;a.download=pdfFileName;a.style.display='none';
+      document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
     });
     document.getElementById('return-app').addEventListener('click',()=>{
       const target=document.getElementById('return-app').dataset.returnUrl;
