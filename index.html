@@ -1178,7 +1178,7 @@ function monthlyCalendarPrintHtml(year, month){
     .day:not(.dense) .event{padding:calc(.55mm * var(--fit)) calc(.7mm * var(--fit))}.day:not(.dense) .event-head{font-size:calc(6.2pt * var(--fit));line-height:1.05}.day:not(.dense) .event-head em{font-size:calc(4.8pt * var(--fit))}.day:not(.dense) .time{font-size:calc(5.5pt * var(--fit));line-height:1.02}.day:not(.dense) .team,.day:not(.dense) .location,.day:not(.dense) .note{font-size:calc(4.9pt * var(--fit));line-height:1.02}.day:not(.dense) .event-subline{gap:calc(1mm * var(--fit));margin-top:calc(.3mm * var(--fit))}.day:not(.dense) .teams{gap:calc(.25mm * var(--fit)) calc(.7mm * var(--fit))}.day:not(.dense) .note{margin-top:calc(.3mm * var(--fit));padding-top:calc(.3mm * var(--fit))}
     .footer{font-size:5pt;color:#778294;text-align:right;margin-top:1mm}
     @media screen{body{padding:6mm;background:#fff}.calendar{height:174mm}.preview-hint{font-size:10px;color:#667085;margin-bottom:5px}}
-    @media print{.preview-hint{display:none}}
+    @media print{html,body{height:198mm;overflow:hidden}.preview-hint{display:none}.calendar{height:171mm!important}.footer{position:absolute;right:0;bottom:0;margin:0;line-height:1.1}}
   </style></head><body>
     <div class="preview-hint">印刷画面で「PDFに保存」を選択してください。</div>
     <div class="top"><h1>${year}年 ${month+1}月　練習予定表</h1><div class="club">西奈一輪車クラブ</div></div>
