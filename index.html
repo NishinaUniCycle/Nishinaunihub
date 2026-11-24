@@ -14,7 +14,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
 <style>
   :root{
     --bg:#F6F5F0;
@@ -1222,19 +1221,44 @@ function drawMonthlyCalendarCanvas(year, month){
   return canvas;
 }
 
+function makeMonthlyPdfBlobFromJpeg(dataUrl, pixelWidth, pixelHeight){
+  // PDFライブラリ/CDNを使わず、JPEG画像を1ページのA4横PDFに格納する。
+  const base64=dataUrl.slice(dataUrl.indexOf(',')+1);
+  const binary=atob(base64);
+  const jpeg=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) jpeg[i]=binary.charCodeAt(i);
+  const encoder=new TextEncoder();
+  const ascii=s=>encoder.encode(s);
+  const chunks=[];
+  let byteLength=0;
+  const add=part=>{chunks.push(part);byteLength+=part.length;};
+  const offsets=[0];
+  add(ascii('%PDF-1.4\n%âãÏÓ\n'));
+  const object=(n,body)=>{offsets[n]=byteLength;add(ascii(`${n} 0 obj\n${body}\nendobj\n`));};
+  object(1,'<< /Type /Catalog /Pages 2 0 R >>');
+  object(2,'<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+  object(3,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 841.89 595.28] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>');
+  offsets[4]=byteLength;
+  add(ascii(`4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${pixelWidth} /Height ${pixelHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`));
+  add(jpeg);
+  add(ascii('\nendstream\nendobj\n'));
+  const content='q\n841.89 0 0 595.28 0 0 cm\n/Im0 Do\nQ';
+  object(5,`<< /Length ${ascii(content).length} >>\nstream\n${content}\nendstream`);
+  const xrefOffset=byteLength;
+  let xref='xref\n0 6\n0000000000 65535 f \n';
+  for(let i=1;i<=5;i++) xref+=`${String(offsets[i]).padStart(10,'0')} 00000 n \n`;
+  add(ascii(xref+`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`));
+  return new Blob(chunks,{type:'application/pdf'});
+}
+
 function exportMonthlyCalendarPdf(){
   const button=document.getElementById('btn-export-month-pdf');
   const originalLabel=button?button.textContent:'📅 月間予定表';
   try{
-    const JsPDF=window.jspdf&&window.jspdf.jsPDF;
-    if(!JsPDF) throw new Error('PDFライブラリを読み込めませんでした。ページを再読み込みしてお試しください。');
     if(button){button.disabled=true;button.textContent='PDF作成中…';}
-
     const canvas=drawMonthlyCalendarCanvas(ui.calYear,ui.calMonth);
     const imageData=canvas.toDataURL('image/jpeg',.96);
-    const pdf=new JsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});
-    pdf.addImage(imageData,'JPEG',0,0,297,210,undefined,'FAST');
-    const blob=pdf.output('blob');
+    const blob=makeMonthlyPdfBlobFromJpeg(imageData,canvas.width,canvas.height);
     const fileName=`${ui.calYear}年${String(ui.calMonth+1).padStart(2,'0')}月_練習予定表.pdf`;
     const url=URL.createObjectURL(blob);
     const link=document.createElement('a');
