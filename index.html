@@ -1011,6 +1011,7 @@ function renderCalendarView(){
       <h2>${wheelSVG(22,false)} 練習カレンダー</h2>
       <div class="calendar-actions">
         <button class="btn btn-secondary btn-sm" id="cal-week-start" title="週の開始曜日を切り替えます">切替</button>
+        <button class="btn btn-outline btn-sm" id="btn-export-month-pdf" title="表示中の月をA4横向きで印刷・PDF保存">📄 月間予定表PDF</button>
         ${isAdmin() ? `<button class="btn btn-primary btn-sm" id="btn-new-event">＋ イベントを追加</button>` : ''}
       </div>
     </div>
@@ -1086,7 +1087,106 @@ function renderEventRow(e){
   </div>`;
 }
 
+function monthlyCalendarPrintHtml(year, month){
+  const first = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  // 画面側の設定に合わせて月曜始まり／日曜始まりを切り替える
+  const mondayStart = !!ui.weekStartsMonday;
+  const startDow = mondayStart ? (first.getDay() + 6) % 7 : first.getDay();
+  const weekCount = Math.ceil((startDow + daysInMonth) / 7);
+  const cells = [];
+  for(let i=0; i<weekCount*7; i++){
+    const day = i - startDow + 1;
+    const inMonth = day >= 1 && day <= daysInMonth;
+    const dateObj = new Date(year, month, day);
+    const dateStr = fmtDate(dateObj);
+    const dayEvents = inMonth ? eventsOn(dateStr) : [];
+    const eventHtml = dayEvents.map(e=>{
+      const ids = eventTeamIds(e);
+      const teams = ids.map(id=>teamById(id)).filter(Boolean);
+      const teamHtml = teams.length
+        ? teams.map(t=>`<span class="team" style="--team:${teamColor(t.id)}"><i></i>${escapeHtml(t.name)}</span>`).join('')
+        : '<span class="team all"><i></i>全体</span>';
+      const time = e.startTime
+        ? `${escapeHtml(e.startTime)}${e.endTime ? `～${escapeHtml(e.endTime)}` : ''}`
+        : (e.endTime ? `～${escapeHtml(e.endTime)}` : '時間未定');
+      return `<article class="event ${e.tentative?'tentative':''}">
+        <div class="event-head"><b>${escapeHtml(e.title||'予定')}</b>${e.tentative?'<em>仮予約</em>':''}</div>
+        <div class="time">${time}</div>
+        <div class="teams">${teamHtml}</div>
+        <div class="location">📍 ${escapeHtml(e.location||'場所未定')}</div>
+        ${e.note ? `<div class="note">${escapeHtml(e.note).replace(/\n/g,'<br>')}</div>` : ''}
+      </article>`;
+    }).join('');
+    const dow = i % 7;
+    const textLoad = dayEvents.reduce((sum,e)=>sum + String(e.title||'').length + String(e.location||'').length + String(e.note||'').length + 24, 0);
+    const density = dayEvents.length >= 4 || textLoad > 360 ? ' ultra' : dayEvents.length >= 2 || textLoad > 170 ? ' compact' : '';
+    cells.push(`<section class="day ${inMonth?'':'outside'} dow-${dow}${density}">
+      <header><span class="date">${inMonth?day:''}</span>${inMonth && dayEvents.length ? `<small>${dayEvents.length}件</small>` : ''}</header>
+      <div class="events">${eventHtml}</div>
+    </section>`);
+  }
+  const legend = DB.teams.map(t=>`<span class="legend-item"><i style="background:${teamColor(t.id)}"></i>${escapeHtml(t.name)}</span>`).join('');
+  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${year}年${month+1}月 練習予定表</title>
+  <style>
+    @page{size:A4 landscape;margin:6mm}
+    *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+    html,body{margin:0;padding:0;font-family:"Noto Sans JP","Yu Gothic",Meiryo,sans-serif;color:#202938}
+    body{width:100%;}
+    .top{height:14mm;display:flex;align-items:center;justify-content:space-between;border-bottom:1.2px solid #263445;margin-bottom:2mm}
+    h1{font-size:17pt;letter-spacing:.08em;margin:0;font-weight:800}
+    .club{font-size:8pt;color:#536174;font-weight:700}
+    .legend{min-height:6mm;display:flex;align-items:center;gap:3mm;flex-wrap:wrap;font-size:6.5pt;margin-bottom:1.5mm}
+    .legend-item{display:inline-flex;align-items:center;gap:1mm;white-space:nowrap}
+    .legend-item i,.team i{display:inline-block;width:2.2mm;height:2.2mm;border-radius:50%;background:var(--team,#8993a4);flex:none}
+    .weekdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.7mm;margin-bottom:.7mm}
+    .weekday{text-align:center;font-size:7pt;font-weight:800;padding:1mm 0;background:#e9eef4;border-radius:1mm}
+    .weekday:first-child{color:#b33b43;background:#f8e9e9}.weekday:last-child{color:#315f9b;background:#e9f0fa}
+    .calendar{height:calc(174mm - 8mm);display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:repeat(${weekCount},minmax(0,1fr));gap:.7mm}
+    .day{border:.35mm solid #aeb8c4;border-radius:1mm;min-width:0;min-height:0;padding:1mm;overflow:hidden;background:#fff}
+    .day.compact .events{gap:.45mm}.day.compact .event{padding:.55mm .7mm}.day.compact .event-head{font-size:5.8pt}.day.compact .time{font-size:5.2pt}.day.compact .team,.day.compact .location,.day.compact .note{font-size:4.7pt}
+    .day.ultra .events{gap:.25mm}.day.ultra .event{padding:.35mm .5mm;border-left-width:.7mm}.day.ultra .event-head{font-size:5pt}.day.ultra .event-head em{font-size:4pt}.day.ultra .time{font-size:4.6pt}.day.ultra .team,.day.ultra .location,.day.ultra .note{font-size:4.1pt;line-height:1.08}.day.ultra .team i{width:1mm;height:1mm}
+    .day.outside{background:#f5f6f8;color:#b9c0c9}
+    .day.dow-0 header{color:#b33b43}.day.dow-6 header{color:#315f9b}
+    .day header{height:4mm;display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:8pt;line-height:1}
+    .day header small{font-size:5.5pt;color:#758195;font-weight:600}
+    .events{display:flex;flex-direction:column;gap:.7mm}
+    .event{border-left:1.1mm solid #8392a5;background:#f2f5f8;border-radius:.6mm;padding:.8mm 1mm;min-width:0;break-inside:avoid}
+    .event-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1mm;font-size:6.5pt;line-height:1.2}
+    .event-head b{font-weight:800;overflow-wrap:anywhere}
+    .event-head em{font-style:normal;color:#8a5a00;background:#fff0c7;border-radius:1mm;padding:.2mm .8mm;font-size:5pt;white-space:nowrap;flex:none}
+    .time{font-size:5.8pt;font-weight:800;line-height:1.2;margin-top:.4mm}
+    .teams{display:flex;flex-wrap:wrap;gap:.5mm 1mm;margin-top:.4mm}
+    .team{display:inline-flex;align-items:center;gap:.5mm;font-size:5.2pt;line-height:1.15;white-space:nowrap;color:#344054}
+    .team i{width:1.5mm;height:1.5mm;background:var(--team)}
+    .team.all i{background:#8993a4}
+    .location,.note{font-size:5.2pt;line-height:1.2;margin-top:.4mm;overflow-wrap:anywhere;white-space:normal}
+    .note{color:#465365;border-top:.2mm dotted #c5cdd6;padding-top:.4mm}
+    .footer{font-size:5pt;color:#778294;text-align:right;margin-top:1mm}
+    @media screen{body{padding:6mm;background:#fff}.calendar{height:174mm}.preview-hint{font-size:10px;color:#667085;margin-bottom:5px}}
+    @media print{.preview-hint{display:none}}
+  </style></head><body>
+    <div class="preview-hint">印刷画面で「PDFに保存」を選択してください。</div>
+    <div class="top"><h1>${year}年 ${month+1}月　練習予定表</h1><div class="club">西奈一輪車クラブ</div></div>
+    <div class="legend">${legend}</div>
+    <div class="weekdays">${(mondayStart ? ['月','火','水','木','金','土','日'] : ['日','月','火','水','木','金','土']).map(d=>`<div class="weekday">${d}</div>`).join('')}</div>
+    <div class="calendar">${cells.join('')}</div>
+    <div class="footer">※ 仮予約は「仮予約」と表示しています。</div>
+    <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),350));<\/script>
+  </body></html>`;
+}
+
+function exportMonthlyCalendarPdf(){
+  const printWindow = window.open('', '_blank');
+  if(!printWindow){ toast('ポップアップがブロックされました。許可してから再度お試しください'); return; }
+  printWindow.document.open();
+  printWindow.document.write(monthlyCalendarPrintHtml(ui.calYear, ui.calMonth));
+  printWindow.document.close();
+}
+
 function attachCalendarEvents(){
+  const exportBtn = document.getElementById('btn-export-month-pdf');
+  if(exportBtn) exportBtn.addEventListener('click', exportMonthlyCalendarPdf);
   const weekBtn = document.getElementById('cal-week-start');
   if(weekBtn){
     weekBtn.textContent = '切替';
