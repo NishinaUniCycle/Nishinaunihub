@@ -1216,7 +1216,7 @@ function monthlyCalendarPrintHtml(year, month, returnUrl=location.href){
     }
     let generatedPdfBlob=null;
     const savePdfButton=document.getElementById('save-pdf');
-    const pdfFileName=year+'年'+String(month+1).padStart(2,'0')+'月_練習予定表.pdf';
+    const pdfFileName=${JSON.stringify(`${year}年${String(month+1).padStart(2,'0')}月_練習予定表.pdf`)};
     async function createMonthlyPdf(){
       fitCalendarDays();
       if(!window.html2pdf) throw new Error('PDF作成ライブラリを読み込めませんでした。通信環境を確認してください。');
@@ -1236,8 +1236,8 @@ function monthlyCalendarPrintHtml(year, month, returnUrl=location.href){
       fitCalendarDays();
       createMonthlyPdf().catch(error=>{
         savePdfButton.disabled=false;
-        savePdfButton.textContent='PDF作成を再試行';
-        savePdfButton.title=error.message;
+        savePdfButton.textContent='PDF作成失敗（再試行）';
+        savePdfButton.title=error && error.message ? error.message : 'PDFの作成に失敗しました';
       });
     });
     savePdfButton.addEventListener('click',async()=>{
