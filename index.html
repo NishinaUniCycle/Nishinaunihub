@@ -568,10 +568,18 @@ async function loadSharedData(){
     loadKey('attendance', null), loadKey('records', null), loadKey('announcements', null),
     loadKey('settings', null), loadKey('locations', null),
   ]);
-  DB.teams = teams || (failedLoadKeys.has('teams') ? [] : [
-    {id:'t1', name:'ちびっこクラス'}, {id:'t2', name:'ジュニアクラス'}, {id:'t3', name:'アドバンスクラス'},
-    {id:'t4', name:'演技チームA'}, {id:'t5', name:'演技チームB'},
-  ]);
+  const originalDefaultTeamNames = ['ちびっこクラス','ジュニアクラス','アドバンスクラス','演技チームA','演技チームB'];
+  const restoredTeamNames = ['準会員','Twinkle','Dreamy','Happy','フリー'];
+  DB.teams = teams || (failedLoadKeys.has('teams') ? [] : originalDefaultTeamNames.map((name, i)=>({id:`t${i+1}`, name})));
+  // 以前の誤った初期チーム名が保存されている場合だけ、ユーザー確認済みの元の5チーム名へ復元する。
+  // IDやその他のチーム情報は維持し、予定・メンバーとの紐付けを壊さない。
+  const hasAccidentalDefaults = Array.isArray(DB.teams) && DB.teams.length === originalDefaultTeamNames.length &&
+    DB.teams.every((team, i)=>team && team.name === originalDefaultTeamNames[i]);
+  if(hasAccidentalDefaults && !failedLoadKeys.has('teams')){
+    DB.teams = DB.teams.map((team, i)=>({...team, name:restoredTeamNames[i]}));
+    await saveKey('teams', DB.teams);
+    toast('チーム名を元の5つに復元しました');
+  }
   // 「データ未作成」の場合だけ初期値を登録。通信・権限エラー時は絶対に上書きしない。
   if(!teams && !failedLoadKeys.has('teams')) await saveKey('teams', DB.teams);
   if(failedLoadKeys.has('teams')) toast('チーム情報を読み込めませんでした。通信状態を確認して再読み込みしてください。既存データは上書きしていません。');
