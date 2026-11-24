@@ -1101,7 +1101,8 @@ function monthlyCalendarPrintHtml(year, month){
     const dateObj = new Date(year, month, day);
     const dateStr = fmtDate(dateObj);
     const dayEvents = inMonth ? eventsOn(dateStr) : [];
-    const eventHtml = dayEvents.map(e=>{
+    const visibleEvents = dayEvents.slice(0,4);
+    const eventHtml = visibleEvents.map(e=>{
       const ids = eventTeamIds(e);
       const teams = ids.map(id=>teamById(id)).filter(Boolean);
       const teamHtml = teams.length
@@ -1114,18 +1115,17 @@ function monthlyCalendarPrintHtml(year, month){
         <div class="event-head"><b>${escapeHtml(e.title||'予定')}</b><span class="event-meta">${e.tentative?'<em>仮予約</em>':''}<span class="time">${time}</span></span></div>
         <div class="teams-line"><div class="teams">${teamHtml}</div></div>
         <div class="location">📍 ${escapeHtml(e.location||'場所未定')}</div>
-        ${e.note ? `<div class="note">${escapeHtml(e.note).replace(/\n/g,'<br>')}</div>` : ''}
+        ${e.note ? `<div class="note">${escapeHtml(e.note).replace(/\n/g,' ')}</div>` : '<div class="note empty-note"></div>'}
       </article>`;
     }).join('');
     const dow = i % 7;
     const textLoad = dayEvents.reduce((sum,e)=>sum + String(e.title||'').length + String(e.location||'').length + String(e.note||'').length + 24, 0);
-    const density = dayEvents.length >= 4 || textLoad > 360 ? ' ultra' : dayEvents.length >= 2 || textLoad > 170 ? ' compact' : '';
+    const density = dayEvents.length >= 3 || textLoad > 170 ? ' compact dense' : dayEvents.length >= 2 ? ' compact' : '';
     cells.push(`<section class="day ${inMonth?'':'outside'} dow-${dow}${density}">
       <header><span class="date">${inMonth?day:''}</span>${inMonth && dayEvents.length ? `<small>${dayEvents.length}件</small>` : ''}</header>
-      <div class="events">${eventHtml}</div>
+      <div class="events">${eventHtml}${dayEvents.length>4 ? `<div class="more-events">ほか ${dayEvents.length-4} 件</div>` : ''}</div>
     </section>`);
   }
-  const legend = DB.teams.map(t=>`<span class="legend-item"><i style="background:${teamColor(t.id)}"></i>${escapeHtml(t.name)}</span>`).join('');
   return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${year}年${month+1}月 練習予定表</title>
   <style>
     @page{size:A4 landscape;margin:6mm}
@@ -1135,16 +1135,27 @@ function monthlyCalendarPrintHtml(year, month){
     .top{height:14mm;display:flex;align-items:center;justify-content:space-between;border-bottom:1.2px solid #263445;margin-bottom:2mm}
     h1{font-size:17pt;letter-spacing:.08em;margin:0;font-weight:800}
     .club{font-size:8pt;color:#536174;font-weight:700}
-    .legend{min-height:6mm;display:flex;align-items:center;gap:3mm;flex-wrap:wrap;font-size:6.5pt;margin-bottom:1.5mm}
-    .legend-item{display:inline-flex;align-items:center;gap:1mm;white-space:nowrap}
-    .legend-item i,.team i{display:inline-block;width:2.2mm;height:2.2mm;border-radius:50%;background:var(--team,#8993a4);flex:none}
+    .team i{display:inline-block;width:1.3mm;height:1.3mm;border-radius:50%;background:var(--team,#8993a4);flex:none}
     .weekdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.7mm;margin-bottom:.7mm}
     .weekday{text-align:center;font-size:7pt;font-weight:800;padding:1mm 0;background:#e9eef4;border-radius:1mm}
     .weekday:first-child{color:#b33b43;background:#f8e9e9}.weekday:last-child{color:#315f9b;background:#e9f0fa}
-    .calendar{height:166mm;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:repeat(${weekCount},minmax(0,1fr));gap:.7mm}
+    .calendar{height:174mm;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:repeat(${weekCount},minmax(0,1fr));gap:.7mm}
     .day{--fit:1;border:.35mm solid #aeb8c4;border-radius:1mm;min-width:0;min-height:0;padding:1mm;overflow:hidden;background:#fff;display:flex;flex-direction:column}
-    .day.compact .events{gap:.4mm}.day.compact .event{padding:.5mm .65mm}
-    .day.ultra .events{gap:.2mm}.day.ultra .event{padding:.3mm .4mm;border-left-width:.6mm}.day.ultra .team i{width:1mm;height:1mm}
+    .day.compact .events{gap:.25mm}.day.compact .event{padding:.35mm .5mm}
+    .day.dense .events{gap:.25mm}
+    .day.dense .event{flex:1 1 0;min-height:0;display:flex;flex-direction:column;justify-content:space-around;overflow:hidden;padding:.25mm .45mm;border-left-width:.65mm}
+    .day.dense .event-head{font-size:4.4pt;line-height:1;min-width:0;white-space:nowrap;overflow:hidden}
+    .day.dense .event-head>b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
+    .day.dense .event-meta{gap:.4mm}
+    .day.dense .time{font-size:4.1pt;line-height:1;}
+    .day.dense .event-head em{font-size:3.7pt;padding:0 .4mm}
+    .day.dense .teams-line,.day.dense .location,.day.dense .note{min-width:0;width:100%;height:1.35mm;max-height:1.35mm;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:4.1pt;line-height:1.05;margin:0;padding:0;border:0}
+    .day.dense .teams{display:flex;flex-wrap:nowrap;gap:.5mm;min-width:0;overflow:hidden;white-space:nowrap}
+    .day.dense .team{font-size:4.1pt;line-height:1;white-space:nowrap;flex:none}
+    .day.dense .team i{width:1mm;height:1mm}
+    .day.dense .note{color:#465365}
+    .day.dense .empty-note{display:none}
+    .more-events{flex:none;text-align:right;font-size:4pt;line-height:1;color:#667085;padding-top:.1mm}
     .day.outside{background:#f5f6f8;color:#b9c0c9}
     .day.dow-0 header{color:#b33b43}.day.dow-6 header{color:#315f9b}
     .day header{height:4mm;display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:8pt;line-height:1}
@@ -1157,21 +1168,20 @@ function monthlyCalendarPrintHtml(year, month){
     .event-meta{display:flex;align-items:center;gap:.8mm;flex:none;white-space:nowrap}
     .event-head em{font-style:normal;color:#8a5a00;background:#fff0c7;border-radius:1mm;padding:.2mm .8mm;font-size:5pt;white-space:nowrap;flex:none}
     .time{font-size:5.8pt;font-weight:800;line-height:1.1;white-space:nowrap}
-    .teams-line{min-width:0;margin-top:.45mm}
-    .teams{display:flex;flex-wrap:wrap;gap:.3mm .8mm;min-width:0;width:100%}
-    .team{display:inline-flex;align-items:center;gap:.5mm;font-size:5.2pt;line-height:1.1;white-space:normal;color:#344054}
-    .team i{width:1.5mm;height:1.5mm;background:var(--team);flex:none}
+    .event-subline{display:flex;align-items:flex-start;gap:1mm;min-width:0;margin-top:.35mm}
+    .teams{display:flex;flex-wrap:wrap;gap:.3mm .8mm;min-width:0;flex:0 1 auto}
+    .team{display:inline-flex;align-items:center;gap:.5mm;font-size:5.2pt;line-height:1.1;white-space:nowrap;color:#344054}
+    .team i{width:1.5mm;height:1.5mm;background:var(--team)}
     .team.all i{background:#8993a4}
-    .location{font-size:5.2pt;line-height:1.15;min-width:0;width:100%;margin-top:.4mm;overflow-wrap:anywhere;word-break:break-word;white-space:normal}
+    .location{font-size:5.2pt;line-height:1.1;min-width:0;flex:1;overflow-wrap:anywhere;white-space:normal}
     .note{font-size:5.2pt;line-height:1.15;margin-top:.35mm;overflow-wrap:anywhere;white-space:normal;color:#465365;border-top:.2mm dotted #c5cdd6;padding-top:.35mm}
-    .day .event{padding:calc(.65mm * var(--fit)) calc(.8mm * var(--fit))}.day .event-head{font-size:calc(6.5pt * var(--fit));line-height:1.08}.day .event-head em{font-size:calc(5pt * var(--fit))}.day .time{font-size:calc(5.8pt * var(--fit));line-height:1.05}.day .team,.day .location,.day .note{font-size:calc(5.2pt * var(--fit));line-height:1.05}.day .teams-line{margin-top:calc(.45mm * var(--fit))}.day .teams{gap:calc(.3mm * var(--fit)) calc(.8mm * var(--fit))}.day .location{margin-top:calc(.4mm * var(--fit))}.day .note{margin-top:calc(.35mm * var(--fit));padding-top:calc(.35mm * var(--fit))}
+    .day:not(.dense) .event{padding:calc(.55mm * var(--fit)) calc(.7mm * var(--fit))}.day:not(.dense) .event-head{font-size:calc(6.2pt * var(--fit));line-height:1.05}.day:not(.dense) .event-head em{font-size:calc(4.8pt * var(--fit))}.day:not(.dense) .time{font-size:calc(5.5pt * var(--fit));line-height:1.02}.day:not(.dense) .team,.day:not(.dense) .location,.day:not(.dense) .note{font-size:calc(4.9pt * var(--fit));line-height:1.02}.day:not(.dense) .event-subline{gap:calc(1mm * var(--fit));margin-top:calc(.3mm * var(--fit))}.day:not(.dense) .teams{gap:calc(.25mm * var(--fit)) calc(.7mm * var(--fit))}.day:not(.dense) .note{margin-top:calc(.3mm * var(--fit));padding-top:calc(.3mm * var(--fit))}
     .footer{font-size:5pt;color:#778294;text-align:right;margin-top:1mm}
-    @media screen{body{padding:6mm;background:#fff}.calendar{height:166mm}.preview-hint{font-size:10px;color:#667085;margin-bottom:5px}}
+    @media screen{body{padding:6mm;background:#fff}.calendar{height:174mm}.preview-hint{font-size:10px;color:#667085;margin-bottom:5px}}
     @media print{.preview-hint{display:none}}
   </style></head><body>
     <div class="preview-hint">印刷画面で「PDFに保存」を選択してください。</div>
     <div class="top"><h1>${year}年 ${month+1}月　練習予定表</h1><div class="club">西奈一輪車クラブ</div></div>
-    <div class="legend">${legend}</div>
     <div class="weekdays">${(mondayStart ? ['月','火','水','木','金','土','日'] : ['日','月','火','水','木','金','土']).map(d=>`<div class="weekday">${d}</div>`).join('')}</div>
     <div class="calendar">${cells.join('')}</div>
     <div class="footer">※ 仮予約は「仮予約」と表示しています。</div>
@@ -1187,8 +1197,8 @@ function monthlyCalendarPrintHtml(year, month){
         let fit=1;
         events.style.setProperty('--fit',fit);
         day.style.setProperty('--fit',fit);
-        while(events.scrollHeight>events.clientHeight+1 && fit>0.38){
-          fit=Math.max(0.38,fit-0.04);
+        while(events.scrollHeight>events.clientHeight+1 && fit>0.50 && !day.classList.contains('dense')){
+          fit=Math.max(0.50,fit-0.04);
           day.style.setProperty('--fit',fit.toFixed(2));
         }
         if(events.scrollHeight>events.clientHeight+1){
