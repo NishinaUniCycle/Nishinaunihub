@@ -1178,15 +1178,16 @@ function monthlyCalendarPrintHtml(year, month, returnUrl=location.href){
     .day:not(.dense) .event{padding:calc(.55mm * var(--fit)) calc(.7mm * var(--fit))}.day:not(.dense) .event-head{font-size:calc(6.2pt * var(--fit));line-height:1.05}.day:not(.dense) .event-head em{font-size:calc(4.8pt * var(--fit))}.day:not(.dense) .time{font-size:calc(5.5pt * var(--fit));line-height:1.02}.day:not(.dense) .team,.day:not(.dense) .location,.day:not(.dense) .note{font-size:calc(4.9pt * var(--fit));line-height:1.02}.day:not(.dense) .event-subline{gap:calc(1mm * var(--fit));margin-top:calc(.3mm * var(--fit))}.day:not(.dense) .teams{gap:calc(.25mm * var(--fit)) calc(.7mm * var(--fit))}.day:not(.dense) .note{margin-top:calc(.3mm * var(--fit));padding-top:calc(.3mm * var(--fit))}
     .footer{font-size:5pt;color:#778294;text-align:right;margin-top:1mm}
     .screen-toolbar{display:none}
-    @media screen{body{padding:6mm;background:#fff}.calendar{height:174mm}.preview-hint{font-size:10px;color:#667085;margin-bottom:5px}.screen-toolbar{display:flex;position:sticky;top:0;z-index:20;justify-content:flex-end;gap:8px;margin:-6mm -6mm 8px;padding:8px 10px;background:#fff;border-bottom:1px solid #d7dee8}.screen-toolbar a{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px;border-radius:8px;background:#263445;color:#fff;text-decoration:none;font-size:14px;font-weight:700}}
-    @media print{html,body{height:198mm;overflow:hidden}.screen-toolbar,.preview-hint{display:none}.calendar{height:171mm!important}.footer{position:absolute;right:0;bottom:0;margin:0;line-height:1.1}}
+    @media screen{body{padding:6mm;background:#fff}.calendar{height:174mm}.screen-toolbar{display:flex;position:sticky;top:0;z-index:20;justify-content:space-between;gap:8px;margin:-6mm -6mm 8px;padding:8px 10px;background:#fff;border-bottom:1px solid #d7dee8}.screen-toolbar button{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px;border:0;border-radius:8px;background:#263445;color:#fff;font-size:14px;font-weight:700}.screen-toolbar #print-month{background:#176b48}}
+    @media print{html,body{height:198mm;overflow:hidden}.screen-toolbar{display:none}.calendar{height:171mm!important}}
   </style></head><body>
-    <div class="screen-toolbar"><a href="${escapeHtml(returnUrl)}">← アプリに戻る</a></div>
-    <div class="preview-hint">印刷画面で「PDFに保存」を選択してください。</div>
+    <div class="screen-toolbar">
+      <button type="button" id="return-app" data-return-url="${escapeHtml(returnUrl)}">← アプリに戻る</button>
+      <button type="button" id="print-month">印刷</button>
+    </div>
     <div class="top"><h1>${year}年 ${month+1}月　練習予定表</h1><div class="club">西奈一輪車クラブ</div></div>
     <div class="weekdays">${(mondayStart ? ['月','火','水','木','金','土','日'] : ['日','月','火','水','木','金','土']).map(d=>`<div class="weekday">${d}</div>`).join('')}</div>
     <div class="calendar">${cells.join('')}</div>
-    <div class="footer">※ 仮予約は「仮予約」と表示しています。</div>
     <script>
     function fitCalendarDays(){
       document.querySelectorAll('.day:not(.outside)').forEach(day=>{
@@ -1209,8 +1210,24 @@ function monthlyCalendarPrintHtml(year, month, returnUrl=location.href){
         }
       });
     }
-    window.addEventListener('load',()=>setTimeout(()=>{fitCalendarDays();window.print();},450));
+    window.addEventListener('load',fitCalendarDays);
     window.addEventListener('beforeprint',fitCalendarDays);
+    document.getElementById('print-month').addEventListener('click',()=>{
+      fitCalendarDays();
+      window.print();
+    });
+    document.getElementById('return-app').addEventListener('click',()=>{
+      const target=document.getElementById('return-app').dataset.returnUrl;
+      try{
+        if(window.opener && !window.opener.closed){
+          window.opener.focus();
+          window.close();
+          return;
+        }
+      }catch(e){}
+      if(target){ window.location.replace(target); }
+      else if(history.length>1){ history.back(); }
+    });
     <\/script>
   </body></html>`;
 }
