@@ -1112,7 +1112,8 @@ function monthlyCalendarPrintHtml(year, month){
         : (e.endTime ? `～${escapeHtml(e.endTime)}` : '時間未定');
       return `<article class="event ${e.tentative?'tentative':''}">
         <div class="event-head"><b>${escapeHtml(e.title||'予定')}</b><span class="event-meta">${e.tentative?'<em>仮予約</em>':''}<span class="time">${time}</span></span></div>
-        <div class="event-subline"><div class="teams">${teamHtml}</div><div class="location">📍 ${escapeHtml(e.location||'場所未定')}</div></div>
+        <div class="teams-line"><div class="teams">${teamHtml}</div></div>
+        <div class="location">📍 ${escapeHtml(e.location||'場所未定')}</div>
         ${e.note ? `<div class="note">${escapeHtml(e.note).replace(/\n/g,'<br>')}</div>` : ''}
       </article>`;
     }).join('');
@@ -1156,14 +1157,14 @@ function monthlyCalendarPrintHtml(year, month){
     .event-meta{display:flex;align-items:center;gap:.8mm;flex:none;white-space:nowrap}
     .event-head em{font-style:normal;color:#8a5a00;background:#fff0c7;border-radius:1mm;padding:.2mm .8mm;font-size:5pt;white-space:nowrap;flex:none}
     .time{font-size:5.8pt;font-weight:800;line-height:1.1;white-space:nowrap}
-    .event-subline{display:flex;align-items:flex-start;gap:1mm;min-width:0;margin-top:.35mm}
-    .teams{display:flex;flex-wrap:wrap;gap:.3mm .8mm;min-width:0;flex:0 1 auto}
-    .team{display:inline-flex;align-items:center;gap:.5mm;font-size:5.2pt;line-height:1.1;white-space:nowrap;color:#344054}
-    .team i{width:1.5mm;height:1.5mm;background:var(--team)}
+    .teams-line{min-width:0;margin-top:.45mm}
+    .teams{display:flex;flex-wrap:wrap;gap:.3mm .8mm;min-width:0;width:100%}
+    .team{display:inline-flex;align-items:center;gap:.5mm;font-size:5.2pt;line-height:1.1;white-space:normal;color:#344054}
+    .team i{width:1.5mm;height:1.5mm;background:var(--team);flex:none}
     .team.all i{background:#8993a4}
-    .location{font-size:5.2pt;line-height:1.1;min-width:0;flex:1;overflow-wrap:anywhere;white-space:normal}
+    .location{font-size:5.2pt;line-height:1.15;min-width:0;width:100%;margin-top:.4mm;overflow-wrap:anywhere;word-break:break-word;white-space:normal}
     .note{font-size:5.2pt;line-height:1.15;margin-top:.35mm;overflow-wrap:anywhere;white-space:normal;color:#465365;border-top:.2mm dotted #c5cdd6;padding-top:.35mm}
-    .day .event{padding:calc(.65mm * var(--fit)) calc(.8mm * var(--fit))}.day .event-head{font-size:calc(6.5pt * var(--fit));line-height:1.08}.day .event-head em{font-size:calc(5pt * var(--fit))}.day .time{font-size:calc(5.8pt * var(--fit));line-height:1.05}.day .team,.day .location,.day .note{font-size:calc(5.2pt * var(--fit));line-height:1.05}.day .event-subline{gap:calc(1mm * var(--fit));margin-top:calc(.35mm * var(--fit))}.day .teams{gap:calc(.3mm * var(--fit)) calc(.8mm * var(--fit))}.day .note{margin-top:calc(.35mm * var(--fit));padding-top:calc(.35mm * var(--fit))}
+    .day .event{padding:calc(.65mm * var(--fit)) calc(.8mm * var(--fit))}.day .event-head{font-size:calc(6.5pt * var(--fit));line-height:1.08}.day .event-head em{font-size:calc(5pt * var(--fit))}.day .time{font-size:calc(5.8pt * var(--fit));line-height:1.05}.day .team,.day .location,.day .note{font-size:calc(5.2pt * var(--fit));line-height:1.05}.day .teams-line{margin-top:calc(.45mm * var(--fit))}.day .teams{gap:calc(.3mm * var(--fit)) calc(.8mm * var(--fit))}.day .location{margin-top:calc(.4mm * var(--fit))}.day .note{margin-top:calc(.35mm * var(--fit));padding-top:calc(.35mm * var(--fit))}
     .footer{font-size:5pt;color:#778294;text-align:right;margin-top:1mm}
     @media screen{body{padding:6mm;background:#fff}.calendar{height:166mm}.preview-hint{font-size:10px;color:#667085;margin-bottom:5px}}
     @media print{.preview-hint{display:none}}
